@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xpgraph"
+dynamic = ["version"]
+description = "Experience Graph — structured memory and learning for AI agents"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "structlog>=23.0",
+    "ulid-py>=1.1",
+    "python-dateutil>=2.8",
+    "pyyaml>=6.0",
+    "typer>=0.9",
+    "rich>=13.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "pytest-cov>=4.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "pre-commit>=4.0",
+]
+vectors = [
+    "lancedb",
+    "pyarrow",
+    "pandas",
+    "numpy",
+]
+
+[project.scripts]
+xpg = "xpgraph_cli.main:app"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/xpgraph", "src/xpgraph_cli", "src/xpgraph_workers"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "B", "W", "I", "N", "UP", "ANN", "S", "C4",
+    "DTZ", "T10", "EM", "ISC", "ICN", "LOG", "G", "PIE", "PT",
+    "RET", "SIM", "TCH", "ARG", "PTH", "ERA", "PL", "TRY",
+    "FLY", "PERF", "FURB", "RUF",
+]
+ignore = [
+    "ANN401",  # dynamically typed expressions (Any)
+    "S101",    # use of assert (ok in tests)
+    "PLR0913", # too many arguments
+    "TC001",   # move import into TYPE_CHECKING block
+    "TC003",   # move stdlib import into TYPE_CHECKING block
+    "RUF022",  # __all__ not sorted
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "ANN", "PLR2004", "ARG002", "ARG005"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = false
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v --tb=short"
+pythonpath = ["src"]
