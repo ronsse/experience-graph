@@ -10,6 +10,7 @@ from xpgraph.mutate.commands import (
     OperationRegistry,
 )
 from xpgraph.mutate.executor import MutationExecutor
+from xpgraph.mutate.policy_gate import DefaultPolicyGate
 
 __all__ = [
     "BatchStrategy",
@@ -17,6 +18,7 @@ __all__ = [
     "CommandBatch",
     "CommandResult",
     "CommandStatus",
+    "DefaultPolicyGate",
     "MutationExecutor",
     "Operation",
     "OperationRegistry",
