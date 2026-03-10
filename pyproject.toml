@@ -79,7 +79,7 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = "xpgraph._version"
+module = ["xpgraph._version", "numpy", "numpy.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
