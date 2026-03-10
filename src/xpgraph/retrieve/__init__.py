@@ -1,5 +1,6 @@
 """Retrieval system for Experience Graph pack assembly."""
 
+from xpgraph.retrieve.pack_builder import PackBuilder
 from xpgraph.retrieve.strategies import (
     GraphSearch,
     KeywordSearch,
@@ -10,6 +11,7 @@ from xpgraph.retrieve.strategies import (
 __all__ = [
     "GraphSearch",
     "KeywordSearch",
+    "PackBuilder",
     "SearchStrategy",
     "SemanticSearch",
 ]
