@@ -9,6 +9,7 @@ from xpgraph.mutate.commands import (
     Operation,
     OperationRegistry,
 )
+from xpgraph.mutate.executor import MutationExecutor
 
 __all__ = [
     "BatchStrategy",
@@ -16,6 +17,7 @@ __all__ = [
     "CommandBatch",
     "CommandResult",
     "CommandStatus",
+    "MutationExecutor",
     "Operation",
     "OperationRegistry",
 ]
