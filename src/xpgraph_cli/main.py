@@ -1,0 +1,33 @@
+"""Experience Graph CLI — xpg."""
+
+from __future__ import annotations
+
+import typer
+
+from xpgraph_cli.admin import admin_app
+
+app = typer.Typer(
+    name="xpg",
+    help="Experience Graph — shared experience store for AI agents and teams.",
+    no_args_is_help=True,
+)
+
+# Register command groups
+app.add_typer(admin_app, name="admin", help="Administration and setup")
+
+# Placeholder sub-apps for future commands
+ingest_app = typer.Typer(help="Ingest traces and evidence", no_args_is_help=True)
+curate_app = typer.Typer(help="Curate the experience graph", no_args_is_help=True)
+retrieve_app = typer.Typer(help="Retrieve packs and search", no_args_is_help=True)
+analyze_app = typer.Typer(help="Analyze the experience graph", no_args_is_help=True)
+worker_app = typer.Typer(help="Run curation workers", no_args_is_help=True)
+
+app.add_typer(ingest_app, name="ingest")
+app.add_typer(curate_app, name="curate")
+app.add_typer(retrieve_app, name="retrieve")
+app.add_typer(analyze_app, name="analyze")
+app.add_typer(worker_app, name="worker")
+
+
+if __name__ == "__main__":
+    app()
