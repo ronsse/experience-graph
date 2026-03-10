@@ -5,7 +5,9 @@ from __future__ import annotations
 import typer
 
 from xpgraph_cli.admin import admin_app
+from xpgraph_cli.curate import curate_app
 from xpgraph_cli.ingest import ingest_app
+from xpgraph_cli.retrieve import retrieve_app
 
 app = typer.Typer(
     name="xpg",
@@ -16,9 +18,6 @@ app = typer.Typer(
 # Register command groups
 app.add_typer(admin_app, name="admin", help="Administration and setup")
 
-# Placeholder sub-apps for future commands
-curate_app = typer.Typer(help="Curate the experience graph", no_args_is_help=True)
-retrieve_app = typer.Typer(help="Retrieve packs and search", no_args_is_help=True)
 analyze_app = typer.Typer(help="Analyze the experience graph", no_args_is_help=True)
 worker_app = typer.Typer(help="Run curation workers", no_args_is_help=True)
 
