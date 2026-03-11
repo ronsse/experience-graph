@@ -127,7 +127,7 @@ class TestRetentionWorker:
         report = worker.run(RetentionPolicy(max_age_days=365))
 
         assert report.traces_scanned == 3
-        assert report.traces_pruned == 3
+        assert report.traces_marked == 3
         assert report.traces_preserved == 0
         assert report.dry_run is False
         assert report.completed_at is not None
@@ -159,7 +159,7 @@ class TestRetentionWorker:
 
         assert report.traces_scanned == 2
         assert report.traces_preserved == 1
-        assert report.traces_pruned == 1
+        assert report.traces_marked == 1
 
     def test_dry_run_does_not_emit_events(
         self,
@@ -178,7 +178,7 @@ class TestRetentionWorker:
         worker = RetentionWorker(trace_store, event_log=event_log)
         report = worker.run(RetentionPolicy(max_age_days=365, dry_run=True))
 
-        assert report.traces_pruned == 1
+        assert report.traces_marked == 1
         assert report.dry_run is True
 
         events = event_log.get_events(event_type=EventType.MUTATION_EXECUTED)
@@ -219,7 +219,7 @@ class TestRetentionWorker:
         report = worker.run(RetentionPolicy(max_age_days=365))
 
         assert report.traces_scanned == 0
-        assert report.traces_pruned == 0
+        assert report.traces_marked == 0
         assert report.traces_preserved == 0
         assert report.completed_at is not None
 

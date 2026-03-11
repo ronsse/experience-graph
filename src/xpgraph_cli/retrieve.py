@@ -7,6 +7,14 @@ import json
 import typer
 from rich.console import Console
 
+from xpgraph.stores.event_log import EventType
+from xpgraph_cli.stores import (
+    get_document_store,
+    get_event_log,
+    get_graph_store,
+    get_trace_store,
+)
+
 retrieve_app = typer.Typer(no_args_is_help=True)
 console = Console()
 
@@ -20,26 +28,33 @@ def pack(
     output_format: str = typer.Option("text", "--format", help="Output format"),
 ) -> None:
     """Assemble a retrieval pack for a given intent."""
-    request: dict[str, object] = {
-        "intent": intent,
-        "domain": domain,
-        "agent_id": agent,
-        "max_items": max_items,
-    }
+    store = get_document_store()
+    try:
+        filters = {}
+        if domain:
+            filters["domain"] = domain
+        results = store.search(query=intent, limit=max_items, filters=filters)
+    finally:
+        store.close()
+
     if output_format == "json":
-        console.print(json.dumps({"status": "request", **request}))
+        console.print(json.dumps({
+            "status": "ok",
+            "intent": intent,
+            "domain": domain,
+            "agent_id": agent,
+            "count": len(results),
+            "items": [r["doc_id"] for r in results],
+        }))
     else:
-        console.print("[cyan]Pack request[/cyan]:")
+        console.print(f"[green]Pack assembled[/green] ({len(results)} items)")
         console.print(f"  Intent: {intent}")
         if domain:
             console.print(f"  Domain: {domain}")
         if agent:
             console.print(f"  Agent: {agent}")
-        console.print(f"  Max items: {max_items}")
-        console.print(
-            "[yellow]Note: Pack assembly requires initialized stores"
-            " (xpg admin init)[/yellow]"
-        )
+        for r in results:
+            console.print(f"  - {r['doc_id']}")
 
 
 @retrieve_app.command()
@@ -50,18 +65,27 @@ def search(
     output_format: str = typer.Option("text", "--format", help="Output format"),
 ) -> None:
     """Search the experience graph."""
-    request: dict[str, object] = {"query": query, "limit": limit, "domain": domain}
-    if output_format == "json":
-        console.print(json.dumps({"status": "request", **request}))
-    else:
-        console.print(f"[cyan]Search[/cyan]: {query}")
+    store = get_document_store()
+    try:
+        filters = {}
         if domain:
-            console.print(f"  Domain: {domain}")
-        console.print(f"  Limit: {limit}")
-        console.print(
-            "[yellow]Note: Search requires initialized stores"
-            " (xpg admin init)[/yellow]"
-        )
+            filters["domain"] = domain
+        results = store.search(query=query, limit=limit, filters=filters)
+    finally:
+        store.close()
+
+    if output_format == "json":
+        console.print(json.dumps({
+            "status": "ok",
+            "query": query,
+            "count": len(results),
+            "results": results,
+        }))
+    else:
+        console.print(f"[green]Search results[/green] ({len(results)} found)")
+        for r in results:
+            snippet = r.get("snippet", "")[:80]
+            console.print(f"  - {r['doc_id']}: {snippet}")
 
 
 @retrieve_app.command()
@@ -70,13 +94,29 @@ def trace(
     output_format: str = typer.Option("text", "--format", help="Output format"),
 ) -> None:
     """Retrieve a specific trace by ID."""
+    store = get_trace_store()
+    try:
+        result = store.get(trace_id)
+    finally:
+        store.close()
+
+    if result is None:
+        if output_format == "json":
+            console.print(
+                json.dumps({"status": "not_found", "trace_id": trace_id})
+            )
+        else:
+            console.print(f"[yellow]Trace not found[/yellow]: {trace_id}")
+        raise typer.Exit(code=1)
+
     if output_format == "json":
-        console.print(json.dumps({"status": "request", "trace_id": trace_id}))
+        console.print(result.model_dump_json())
     else:
-        console.print(f"[cyan]Retrieve trace[/cyan]: {trace_id}")
-        console.print(
-            "[yellow]Note: Requires initialized stores (xpg admin init)[/yellow]"
-        )
+        console.print(f"[green]Trace[/green]: {result.trace_id}")
+        console.print(f"  Source: {result.source}")
+        console.print(f"  Intent: {result.intent}")
+        if result.outcome:
+            console.print(f"  Outcome: {result.outcome.status}")
 
 
 @retrieve_app.command()
@@ -85,13 +125,29 @@ def entity(
     output_format: str = typer.Option("text", "--format", help="Output format"),
 ) -> None:
     """Retrieve a specific entity by ID."""
+    store = get_graph_store()
+    try:
+        result = store.get_node(entity_id)
+    finally:
+        store.close()
+
+    if result is None:
+        if output_format == "json":
+            console.print(
+                json.dumps({"status": "not_found", "entity_id": entity_id})
+            )
+        else:
+            console.print(f"[yellow]Entity not found[/yellow]: {entity_id}")
+        raise typer.Exit(code=1)
+
     if output_format == "json":
-        console.print(json.dumps({"status": "request", "entity_id": entity_id}))
+        console.print(json.dumps(result))
     else:
-        console.print(f"[cyan]Retrieve entity[/cyan]: {entity_id}")
-        console.print(
-            "[yellow]Note: Requires initialized stores (xpg admin init)[/yellow]"
-        )
+        console.print(f"[green]Entity[/green]: {entity_id}")
+        console.print(f"  Type: {result.get('node_type', 'unknown')}")
+        props = result.get("properties", {})
+        for k, v in props.items():
+            console.print(f"  {k}: {v}")
 
 
 @retrieve_app.command()
@@ -101,14 +157,38 @@ def precedents(
     output_format: str = typer.Option("text", "--format", help="Output format"),
 ) -> None:
     """List precedents, optionally scoped by domain."""
-    request: dict[str, object] = {"domain": domain, "limit": limit}
-    if output_format == "json":
-        console.print(json.dumps({"status": "request", **request}))
-    else:
-        console.print("[cyan]List precedents[/cyan]")
-        if domain:
-            console.print(f"  Domain: {domain}")
-        console.print(f"  Limit: {limit}")
-        console.print(
-            "[yellow]Note: Requires initialized stores (xpg admin init)[/yellow]"
+    event_log = get_event_log()
+    try:
+        events = event_log.get_events(
+            event_type=EventType.PRECEDENT_PROMOTED,
+            limit=limit,
         )
+    finally:
+        event_log.close()
+
+    # Filter by domain if specified
+    if domain:
+        events = [
+            e for e in events
+            if e.payload.get("domain") == domain
+        ]
+
+    if output_format == "json":
+        items = [
+            {
+                "event_id": e.event_id,
+                "entity_id": e.entity_id,
+                "payload": e.payload,
+            }
+            for e in events
+        ]
+        console.print(json.dumps({
+            "status": "ok",
+            "count": len(events),
+            "items": items,
+        }))
+    else:
+        console.print(f"[green]Precedents[/green] ({len(events)} found)")
+        for e in events:
+            title = e.payload.get("title", e.entity_id or "unknown")
+            console.print(f"  - {title} ({e.entity_id})")

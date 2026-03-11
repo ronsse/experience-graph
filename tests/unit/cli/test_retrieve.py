@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from xpgraph_cli.main import app
 
 runner = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def _temp_stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point CLI stores at a temp directory."""
+    data_dir = tmp_path / "data"
+    (data_dir / "stores").mkdir(parents=True)
+    monkeypatch.setenv("XPG_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("XPG_DATA_DIR", str(data_dir))
 
 
 class TestRetrievePack:
@@ -25,9 +36,10 @@ class TestRetrievePack:
             "--domain", "platform",
             "--format", "json",
         ])
+        assert result.exit_code == 0
         data = json.loads(result.stdout.strip())
         assert data["intent"] == "deploy"
-        assert data["domain"] == "platform"
+        assert data["status"] == "ok"
 
 
 class TestRetrieveSearch:
@@ -42,25 +54,26 @@ class TestRetrieveSearch:
         ])
         data = json.loads(result.stdout.strip())
         assert data["query"] == "kubernetes"
+        assert data["status"] == "ok"
 
 
 class TestRetrieveTrace:
-    def test_trace(self) -> None:
-        result = runner.invoke(app, ["retrieve", "trace", "trace_123"])
-        assert result.exit_code == 0
+    def test_trace_not_found(self) -> None:
+        result = runner.invoke(app, ["retrieve", "trace", "nonexistent"])
+        assert result.exit_code == 1
 
-    def test_trace_json(self) -> None:
+    def test_trace_not_found_json(self) -> None:
         result = runner.invoke(app, [
-            "retrieve", "trace", "trace_123", "--format", "json",
+            "retrieve", "trace", "nonexistent", "--format", "json",
         ])
         data = json.loads(result.stdout.strip())
-        assert data["trace_id"] == "trace_123"
+        assert data["status"] == "not_found"
 
 
 class TestRetrieveEntity:
-    def test_entity(self) -> None:
+    def test_entity_not_found(self) -> None:
         result = runner.invoke(app, ["retrieve", "entity", "ent_456"])
-        assert result.exit_code == 0
+        assert result.exit_code == 1
 
 
 class TestRetrievePrecedents:
@@ -68,14 +81,14 @@ class TestRetrievePrecedents:
         result = runner.invoke(app, ["retrieve", "precedents"])
         assert result.exit_code == 0
 
-    def test_precedents_with_domain(self) -> None:
+    def test_precedents_json(self) -> None:
         result = runner.invoke(app, [
             "retrieve", "precedents",
-            "--domain", "platform",
             "--format", "json",
         ])
         data = json.loads(result.stdout.strip())
-        assert data["domain"] == "platform"
+        assert data["status"] == "ok"
+        assert data["count"] == 0
 
 
 class TestRetrieveHelp:

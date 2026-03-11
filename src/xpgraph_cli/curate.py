@@ -7,10 +7,42 @@ import json
 import typer
 from rich.console import Console
 
-from xpgraph.mutate.commands import Command, Operation
+from xpgraph.mutate.commands import Command, CommandStatus, Operation
+from xpgraph.mutate.executor import MutationExecutor
+from xpgraph_cli.stores import get_event_log
 
 curate_app = typer.Typer(no_args_is_help=True)
 console = Console()
+
+
+def _execute_command(cmd: Command, output_format: str) -> None:
+    """Submit a command to the MutationExecutor and display the result."""
+    event_log = get_event_log()
+    try:
+        executor = MutationExecutor(event_log=event_log)
+        result = executor.execute(cmd)
+    finally:
+        event_log.close()
+
+    if output_format == "json":
+        console.print(json.dumps({
+            "status": result.status.value,
+            "command_id": result.command_id,
+            "operation": result.operation,
+            "message": result.message,
+            "created_id": result.created_id,
+        }))
+    else:
+        if result.status == CommandStatus.SUCCESS:
+            console.print(
+                f"[green]\u2713 Command executed[/green]: {result.operation}"
+            )
+        else:
+            console.print(
+                f"[red]\u2717 Command {result.status}[/red]: {result.operation}"
+            )
+        console.print(f"  ID: {result.command_id}")
+        console.print(f"  Message: {result.message}")
 
 
 @curate_app.command()
@@ -29,7 +61,7 @@ def promote(
         target_type="trace",
         requested_by=requested_by,
     )
-    _output_command(cmd, output_format)
+    _execute_command(cmd, output_format)
 
 
 @curate_app.command()
@@ -42,10 +74,14 @@ def link(
     """Create a link between two entities."""
     cmd = Command(
         operation=Operation.LINK_CREATE,
-        args={"source_id": source_id, "target_id": target_id, "edge_kind": edge_kind},
+        args={
+            "source_id": source_id,
+            "target_id": target_id,
+            "edge_kind": edge_kind,
+        },
         requested_by="cli",
     )
-    _output_command(cmd, output_format)
+    _execute_command(cmd, output_format)
 
 
 @curate_app.command()
@@ -61,7 +97,7 @@ def label(
         target_id=target_id,
         requested_by="cli",
     )
-    _output_command(cmd, output_format)
+    _execute_command(cmd, output_format)
 
 
 @curate_app.command()
@@ -81,20 +117,4 @@ def feedback(
         target_id=target_id,
         requested_by="cli",
     )
-    _output_command(cmd, output_format)
-
-
-def _output_command(cmd: Command, output_format: str) -> None:
-    """Output a command in the requested format."""
-    if output_format == "json":
-        console.print(json.dumps({
-            "status": "prepared",
-            "command_id": cmd.command_id,
-            "operation": cmd.operation,
-            "args": cmd.args,
-        }))
-    else:
-        console.print(f"[green]\u2713 Command prepared[/green]: {cmd.operation}")
-        console.print(f"  ID: {cmd.command_id}")
-        for k, v in cmd.args.items():
-            console.print(f"  {k}: {v}")
+    _execute_command(cmd, output_format)

@@ -71,7 +71,12 @@ class VectorStore(ABC):
 
 
 class SQLiteVectorStore(VectorStore):
-    """SQLite-backed vector store with brute-force cosine similarity."""
+    """SQLite-backed vector store with brute-force cosine similarity.
+
+    Note: Uses ``check_same_thread=False`` for compatibility with async
+    frameworks but provides no internal locking. Callers must synchronise
+    access when sharing a single instance across threads.
+    """
 
     def __init__(self, db_path: str | Path) -> None:
         if not HAS_NUMPY:

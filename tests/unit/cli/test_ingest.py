@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from xpgraph_cli.main import app
 
 runner = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def _temp_stores(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Point CLI stores at a temp directory."""
+    data_dir = tmp_path / "data"
+    (data_dir / "stores").mkdir(parents=True)
+    monkeypatch.setenv("XPG_CONFIG_DIR", str(tmp_path / "config"))
+    monkeypatch.setenv("XPG_DATA_DIR", str(data_dir))
 
 
 def _trace_json() -> str:
@@ -29,34 +40,34 @@ def _evidence_json() -> str:
 
 
 class TestIngestTrace:
-    def test_ingest_trace_from_file(self, tmp_path: object) -> None:
-        f = tmp_path / "trace.json"  # type: ignore[operator]
+    def test_ingest_trace_from_file(self, tmp_path: Path) -> None:
+        f = tmp_path / "trace.json"
         f.write_text(_trace_json())
         result = runner.invoke(app, ["ingest", "trace", str(f)])
         assert result.exit_code == 0
-        assert "accepted" in result.stdout.lower() or "Trace accepted" in result.stdout
+        assert "ingested" in result.stdout.lower()
 
-    def test_ingest_trace_json_format(self, tmp_path: object) -> None:
-        f = tmp_path / "trace.json"  # type: ignore[operator]
+    def test_ingest_trace_json_format(self, tmp_path: Path) -> None:
+        f = tmp_path / "trace.json"
         f.write_text(_trace_json())
         result = runner.invoke(app, ["ingest", "trace", str(f), "--format", "json"])
         assert result.exit_code == 0
         data = json.loads(result.stdout.strip())
-        assert data["status"] == "accepted"
+        assert data["status"] == "ingested"
         assert "trace_id" in data
 
     def test_ingest_trace_from_stdin(self) -> None:
         result = runner.invoke(app, ["ingest", "trace", "-"], input=_trace_json())
         assert result.exit_code == 0
 
-    def test_ingest_trace_invalid_json(self, tmp_path: object) -> None:
-        f = tmp_path / "bad.json"  # type: ignore[operator]
+    def test_ingest_trace_invalid_json(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad.json"
         f.write_text("not json")
         result = runner.invoke(app, ["ingest", "trace", str(f)])
         assert result.exit_code == 1
 
-    def test_ingest_trace_invalid_schema(self, tmp_path: object) -> None:
-        f = tmp_path / "bad.json"  # type: ignore[operator]
+    def test_ingest_trace_invalid_schema(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad.json"
         f.write_text(json.dumps({"bogus": "data"}))
         result = runner.invoke(app, ["ingest", "trace", str(f)])
         assert result.exit_code == 1
@@ -67,23 +78,23 @@ class TestIngestTrace:
 
 
 class TestIngestEvidence:
-    def test_ingest_evidence_from_file(self, tmp_path: object) -> None:
-        f = tmp_path / "evidence.json"  # type: ignore[operator]
+    def test_ingest_evidence_from_file(self, tmp_path: Path) -> None:
+        f = tmp_path / "evidence.json"
         f.write_text(_evidence_json())
         result = runner.invoke(app, ["ingest", "evidence", str(f)])
         assert result.exit_code == 0
-        assert "accepted" in result.stdout.lower()
+        assert "ingested" in result.stdout.lower()
 
-    def test_ingest_evidence_json_format(self, tmp_path: object) -> None:
-        f = tmp_path / "evidence.json"  # type: ignore[operator]
+    def test_ingest_evidence_json_format(self, tmp_path: Path) -> None:
+        f = tmp_path / "evidence.json"
         f.write_text(_evidence_json())
         result = runner.invoke(app, ["ingest", "evidence", str(f), "--format", "json"])
         assert result.exit_code == 0
         data = json.loads(result.stdout.strip())
-        assert data["status"] == "accepted"
+        assert data["status"] == "ingested"
 
-    def test_ingest_evidence_invalid(self, tmp_path: object) -> None:
-        f = tmp_path / "bad.json"  # type: ignore[operator]
+    def test_ingest_evidence_invalid(self, tmp_path: Path) -> None:
+        f = tmp_path / "bad.json"
         f.write_text(json.dumps({"bad": "data"}))
         result = runner.invoke(app, ["ingest", "evidence", str(f)])
         assert result.exit_code == 1

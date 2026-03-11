@@ -99,7 +99,12 @@ def _content_hash(content: str) -> str:
 
 
 class SQLiteDocumentStore(DocumentStore):
-    """SQLite-backed document store with FTS5 full-text search."""
+    """SQLite-backed document store with FTS5 full-text search.
+
+    Note: Uses ``check_same_thread=False`` for compatibility with async
+    frameworks but provides no internal locking. Callers must synchronise
+    access when sharing a single instance across threads.
+    """
 
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = Path(db_path)

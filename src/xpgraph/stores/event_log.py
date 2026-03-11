@@ -156,7 +156,12 @@ _CREATE_INDEXES = [
 
 
 class SQLiteEventLog(EventLog):
-    """SQLite-backed append-only event log."""
+    """SQLite-backed append-only event log.
+
+    Note: Uses ``check_same_thread=False`` for compatibility with async
+    frameworks but provides no internal locking. Callers must synchronise
+    access when sharing a single instance across threads.
+    """
 
     def __init__(self, db_path: str | Path) -> None:
         self._db_path = Path(db_path)

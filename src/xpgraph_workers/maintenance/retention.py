@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 import structlog
 from pydantic import Field
 
 from xpgraph.core.base import XPModel, utc_now
-from xpgraph.stores.event_log import EventType
+from xpgraph.stores.document import DocumentStore
+from xpgraph.stores.event_log import EventLog, EventType
+from xpgraph.stores.trace import TraceStore
 
 logger = structlog.get_logger(__name__)
 
@@ -31,25 +32,28 @@ class RetentionReport(XPModel):
     started_at: datetime = Field(default_factory=utc_now)
     completed_at: datetime | None = None
     traces_scanned: int = 0
-    traces_pruned: int = 0
+    traces_marked: int = 0
     traces_preserved: int = 0
     dry_run: bool = False
     errors: list[str] = Field(default_factory=list)
 
 
 class RetentionWorker:
-    """Prunes old traces based on retention policy.
+    """Marks old traces for retention based on policy.
+
+    TraceStore is append-only, so traces are never physically deleted.
+    Instead, "pruning" marks traces in the event log for audit purposes.
 
     Retention rules:
-    - Traces older than max_age_days are candidates for pruning
+    - Traces older than max_age_days are candidates for marking
     - Traces with outcomes in preserve_outcomes are kept regardless
-    - Pruning emits events for audit trail
+    - Marking emits events for audit trail
     """
 
     def __init__(
         self,
-        trace_store: Any,  # TraceStore
-        event_log: Any | None = None,  # EventLog
+        trace_store: TraceStore,
+        event_log: EventLog | None = None,
     ) -> None:
         self._trace_store = trace_store
         self._event_log = event_log
@@ -78,8 +82,8 @@ class RetentionWorker:
 
             if not policy.dry_run:
                 try:
-                    # TraceStore is append-only, so "pruning" = marking in event log
-                    # Real deletion would need store support
+                    # TraceStore is append-only; traces are never physically deleted.
+                    # We mark them in the event log so downstream consumers can filter.
                     if self._event_log is not None:
                         self._event_log.emit(
                             EventType.MUTATION_EXECUTED,
@@ -100,14 +104,14 @@ class RetentionWorker:
                     report.errors.append(f"Error pruning {trace.trace_id}: {e}")
                     continue
 
-            report.traces_pruned += 1
+            report.traces_marked += 1
 
         report.completed_at = utc_now()
 
         logger.info(
             "retention_run_complete",
             scanned=report.traces_scanned,
-            pruned=report.traces_pruned,
+            marked=report.traces_marked,
             preserved=report.traces_preserved,
             dry_run=policy.dry_run,
         )
@@ -134,7 +138,7 @@ class StalenessDetector:
 
     def __init__(
         self,
-        document_store: Any,  # DocumentStore
+        document_store: DocumentStore,
         staleness_days: int = 90,
     ) -> None:
         self._document_store = document_store

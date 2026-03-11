@@ -11,6 +11,7 @@ from rich.console import Console
 
 from xpgraph.schemas.evidence import Evidence
 from xpgraph.schemas.trace import Trace
+from xpgraph_cli.stores import get_document_store, get_trace_store
 
 ingest_app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -45,18 +46,24 @@ def ingest_trace(
             console.print(f"[red]Invalid trace: {exc}[/red]")
         raise typer.Exit(code=1) from None
 
-    # Output result (store write deferred to when stores are wired up)
+    # Persist to store
+    store = get_trace_store()
+    try:
+        store.append(trace)
+    finally:
+        store.close()
+
     if output_format == "json":
         console.print(
             json.dumps({
-                "status": "accepted",
+                "status": "ingested",
                 "trace_id": trace.trace_id,
                 "source": trace.source,
                 "intent": trace.intent,
             })
         )
     else:
-        console.print(f"[green]Trace accepted[/green]: {trace.trace_id}")
+        console.print(f"[green]Trace ingested[/green]: {trace.trace_id}")
         console.print(f"  Source: {trace.source}")
         console.print(f"  Intent: {trace.intent}")
 
@@ -84,14 +91,28 @@ def ingest_evidence(
             console.print(f"[red]Invalid evidence: {exc}[/red]")
         raise typer.Exit(code=1) from None
 
+    # Persist to document store
+    store = get_document_store()
+    try:
+        store.put(
+            doc_id=evidence.evidence_id,
+            content=evidence.content or "",
+            metadata={
+                "evidence_type": evidence.evidence_type,
+                "source_origin": evidence.source_origin,
+            },
+        )
+    finally:
+        store.close()
+
     if output_format == "json":
         console.print(
             json.dumps({
-                "status": "accepted",
+                "status": "ingested",
                 "evidence_id": evidence.evidence_id,
                 "evidence_type": evidence.evidence_type,
             })
         )
     else:
-        console.print(f"[green]Evidence accepted[/green]: {evidence.evidence_id}")
+        console.print(f"[green]Evidence ingested[/green]: {evidence.evidence_id}")
         console.print(f"  Type: {evidence.evidence_type}")

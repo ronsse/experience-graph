@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any
 
 import structlog
 from pydantic import Field
 
+from integrations.obsidian.vault import ObsidianVault
 from xpgraph.core.base import XPModel
+from xpgraph.stores.document import DocumentStore
+from xpgraph.stores.graph import GraphStore
 
 logger = structlog.get_logger(__name__)
 
@@ -45,9 +47,9 @@ class VaultIndexer:
 
     def __init__(
         self,
-        vault: Any,  # ObsidianVault
-        document_store: Any | None = None,  # DocumentStore
-        graph_store: Any | None = None,  # GraphStore
+        vault: ObsidianVault,
+        document_store: DocumentStore | None = None,
+        graph_store: GraphStore | None = None,
     ) -> None:
         self._vault = vault
         self._doc_store = document_store

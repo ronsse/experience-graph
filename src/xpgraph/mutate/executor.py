@@ -64,6 +64,8 @@ class MutationExecutor:
         self._policy_gate = policy_gate
         self._event_log = event_log
         self._handlers: dict[str, CommandHandler] = handlers or {}
+        # In-memory cache of seen idempotency keys. When event_log is available,
+        # also checked against persisted events for cross-restart deduplication.
         self._seen_idempotency_keys: set[str] = set()
 
     def register_handler(self, operation: str, handler: CommandHandler) -> None:
@@ -108,6 +110,18 @@ class MutationExecutor:
                     status=CommandStatus.DUPLICATE,
                     operation=command.operation,
                     message=f"Duplicate command: {command.idempotency_key}",
+                )
+            # Check persisted events for cross-restart deduplication
+            if self._event_log is not None and self._is_key_in_event_log(
+                command.idempotency_key,
+            ):
+                self._seen_idempotency_keys.add(command.idempotency_key)
+                log.info("duplicate_command_persisted", key=command.idempotency_key)
+                return CommandResult(
+                    command_id=command.command_id,
+                    status=CommandStatus.DUPLICATE,
+                    operation=command.operation,
+                    message=f"Duplicate command (persisted): {command.idempotency_key}",
                 )
             self._seen_idempotency_keys.add(command.idempotency_key)
 
@@ -160,6 +174,19 @@ class MutationExecutor:
                 break
         return results
 
+    def _is_key_in_event_log(self, idempotency_key: str) -> bool:
+        """Check if an idempotency key was previously recorded in the event log."""
+        if self._event_log is None:
+            return False
+        events = self._event_log.get_events(
+            event_type=EventType.MUTATION_EXECUTED,
+            source="mutation_executor",
+            limit=100,
+        )
+        return any(
+            e.payload.get("idempotency_key") == idempotency_key for e in events
+        )
+
     def _emit(self, command: Command, status: CommandStatus, message: str) -> None:
         """Emit an event to the event log if available."""
         if self._event_log is None:
@@ -180,5 +207,6 @@ class MutationExecutor:
                 "status": status,
                 "message": message,
                 "requested_by": command.requested_by,
+                "idempotency_key": command.idempotency_key,
             },
         )
