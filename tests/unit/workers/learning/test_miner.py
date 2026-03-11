@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -19,7 +18,6 @@ from xpgraph.schemas.trace import (
 from xpgraph.stores.event_log import EventType, SQLiteEventLog
 from xpgraph.stores.trace import SQLiteTraceStore
 from xpgraph_workers.learning.miner import PrecedentMiner
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -89,7 +87,8 @@ async def _error_llm(
     max_tokens: int = 500,
     model: str | None = None,
 ) -> str:
-    raise RuntimeError("boom")
+    msg = "boom"
+    raise RuntimeError(msg)
 
 
 # ---------------------------------------------------------------------------
@@ -97,14 +96,14 @@ async def _error_llm(
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def trace_store(tmp_path: Any) -> SQLiteTraceStore:
     store = SQLiteTraceStore(tmp_path / "traces.db")
     yield store  # type: ignore[misc]
     store.close()
 
 
-@pytest.fixture()
+@pytest.fixture
 def event_log(tmp_path: Any) -> SQLiteEventLog:
     log = SQLiteEventLog(tmp_path / "events.db")
     yield log  # type: ignore[misc]
@@ -243,7 +242,7 @@ class TestExtractEventEmission:
 class TestGenerateCandidatesEarlyReturn:
     """Tests for cases that short-circuit before LLM call."""
 
-    @pytest.mark.asyncio()
+    @pytest.mark.asyncio
     async def test_no_llm_returns_empty(
         self, trace_store: SQLiteTraceStore
     ) -> None:
@@ -251,7 +250,7 @@ class TestGenerateCandidatesEarlyReturn:
         result = await miner.generate_precedent_candidates()
         assert result == []
 
-    @pytest.mark.asyncio()
+    @pytest.mark.asyncio
     async def test_not_enough_failures_returns_empty(
         self, trace_store: SQLiteTraceStore
     ) -> None:
@@ -294,7 +293,7 @@ class TestGenerateCandidatesHappy:
             traces.append(t)
         return traces
 
-    @pytest.mark.asyncio()
+    @pytest.mark.asyncio
     async def test_returns_precedent_candidates(
         self, trace_store: SQLiteTraceStore
     ) -> None:
@@ -313,7 +312,7 @@ class TestGenerateCandidatesHappy:
         assert p.promoted_by == "precedent_miner"
         assert len(p.source_trace_ids) == 4
 
-    @pytest.mark.asyncio()
+    @pytest.mark.asyncio
     async def test_domain_filtering(
         self, trace_store: SQLiteTraceStore
     ) -> None:
@@ -333,7 +332,7 @@ class TestGenerateCandidatesHappy:
         assert len(result) == 1
         assert result[0].applicability == ["backend"]
 
-    @pytest.mark.asyncio()
+    @pytest.mark.asyncio
     async def test_emits_events_for_candidates(
         self,
         trace_store: SQLiteTraceStore,
@@ -370,7 +369,7 @@ class TestGenerateCandidatesErrors:
             )
             store.append(t)
 
-    @pytest.mark.asyncio()
+    @pytest.mark.asyncio
     async def test_invalid_json_returns_empty(
         self, trace_store: SQLiteTraceStore
     ) -> None:
@@ -380,7 +379,7 @@ class TestGenerateCandidatesErrors:
         result = await miner.generate_precedent_candidates()
         assert result == []
 
-    @pytest.mark.asyncio()
+    @pytest.mark.asyncio
     async def test_llm_exception_returns_empty(
         self, trace_store: SQLiteTraceStore
     ) -> None:

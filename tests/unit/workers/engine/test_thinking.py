@@ -9,12 +9,10 @@ from xpgraph_workers.engine.thinking import (
     EscalationConfig,
     ReasoningEffort,
     TierConfig,
-    ThinkingPolicy,
     WorkflowEngine,
     WorkflowSession,
     WorkflowTier,
 )
-
 
 # ---------------------------------------------------------------------------
 # WorkflowTier & ReasoningEffort
@@ -72,7 +70,7 @@ class TestTierConfig:
         assert cfg.use_verification is True
 
     def test_extra_fields_forbidden(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             TierConfig(tier=WorkflowTier.FAST, unknown_field="x")
 
 
@@ -202,7 +200,7 @@ class TestWorkflowEngineShouldEscalate:
     def test_high_confidence_no_escalation(self):
         engine = WorkflowEngine()
         session = engine.create_session()
-        should, reason = engine.should_escalate(session, confidence=0.9)
+        should, _reason = engine.should_escalate(session, confidence=0.9)
         assert should is False
 
     def test_gate_failures(self):
@@ -245,7 +243,7 @@ class TestWorkflowEngineShouldEscalate:
     def test_at_max_attempts_no_escalation(self):
         engine = WorkflowEngine(escalation=EscalationConfig(max_escalations=0))
         session = engine.create_session()
-        should, reason = engine.should_escalate(session, confidence=0.1)
+        should, _reason = engine.should_escalate(session, confidence=0.1)
         assert should is False
 
     def test_no_triggers_no_escalation(self):
@@ -309,11 +307,13 @@ class TestWorkflowEngineDetermineInitialTier:
 
     def test_deep_intent(self):
         engine = WorkflowEngine()
-        assert engine.determine_initial_tier(intent="deep analysis") == WorkflowTier.DEEP
+        tier = engine.determine_initial_tier(intent="deep analysis")
+        assert tier == WorkflowTier.DEEP
 
     def test_complex_intent(self):
         engine = WorkflowEngine()
-        assert engine.determine_initial_tier(intent="complex pattern") == WorkflowTier.DEEP
+        tier = engine.determine_initial_tier(intent="complex pattern")
+        assert tier == WorkflowTier.DEEP
 
     def test_quick_intent(self):
         engine = WorkflowEngine()
@@ -321,7 +321,8 @@ class TestWorkflowEngineDetermineInitialTier:
 
     def test_simple_intent(self):
         engine = WorkflowEngine()
-        assert engine.determine_initial_tier(intent="simple classification") == WorkflowTier.FAST
+        tier = engine.determine_initial_tier(intent="simple classification")
+        assert tier == WorkflowTier.FAST
 
     def test_high_risk_upgrades_to_deep(self):
         engine = WorkflowEngine()

@@ -69,7 +69,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["S101", "ANN", "PLR2004", "ARG002", "ARG005"]
+"tests/**/*.py" = ["S101", "ANN", "PLR2004", "ARG001", "ARG002", "ARG005", "PT011"]
 "src/xpgraph/stores/**/*.py" = ["S608"]  # parameterized SQL is safe
 
 [tool.mypy]

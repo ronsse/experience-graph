@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
@@ -15,12 +15,9 @@ from xpgraph.stores.event_log import EventType, SQLiteEventLog
 from xpgraph.stores.trace import SQLiteTraceStore
 from xpgraph_workers.maintenance.retention import (
     RetentionPolicy,
-    RetentionReport,
     RetentionWorker,
     StalenessDetector,
-    StalenessReport,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -54,21 +51,21 @@ def _make_trace(
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture()
+@pytest.fixture
 def trace_store(tmp_path: Any) -> SQLiteTraceStore:
     store = SQLiteTraceStore(tmp_path / "traces.db")
     yield store  # type: ignore[misc]
     store.close()
 
 
-@pytest.fixture()
+@pytest.fixture
 def event_log(tmp_path: Any) -> SQLiteEventLog:
     log = SQLiteEventLog(tmp_path / "events.db")
     yield log  # type: ignore[misc]
     log.close()
 
 
-@pytest.fixture()
+@pytest.fixture
 def document_store(tmp_path: Any) -> SQLiteDocumentStore:
     store = SQLiteDocumentStore(tmp_path / "docs.db")
     yield store  # type: ignore[misc]

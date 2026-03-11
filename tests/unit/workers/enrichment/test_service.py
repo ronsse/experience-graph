@@ -60,7 +60,7 @@ class TestEnrichmentResult:
         assert result.error is None
 
     def test_extra_fields_forbidden(self):
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(ValueError):
             EnrichmentResult(unexpected_field="boom")
 
     def test_explicit_values(self):
@@ -93,7 +93,7 @@ VALID_JSON = json.dumps(
 
 
 class TestParseResponse:
-    @pytest.fixture()
+    @pytest.fixture
     def service(self):
         return EnrichmentService(llm=AsyncMock())
 
@@ -170,11 +170,11 @@ class TestParseResponse:
 
 
 class TestEnrich:
-    @pytest.fixture()
+    @pytest.fixture
     def mock_llm(self):
         return AsyncMock(return_value=VALID_JSON)
 
-    @pytest.fixture()
+    @pytest.fixture
     def service(self, mock_llm):
         return EnrichmentService(llm=mock_llm)
 
