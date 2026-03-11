@@ -1,6 +1,6 @@
 # Experience Graph
 
-An org-scale context graph and experience store for AI agents and teams. Agents read from and write to a shared knowledge layer — structured traces, entities, evidence, precedents, and policies — so teams build institutional memory instead of starting from scratch.
+A structured context graph and experience store for AI agents. Agents read from and write to a shared knowledge layer — traces, entities, evidence, precedents, and policies — so teams build institutional memory instead of starting from scratch.
 
 ## Core Concepts
 
