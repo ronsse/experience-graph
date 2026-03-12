@@ -5,6 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
+from xpgraph.retrieve.effectiveness import analyze_effectiveness
 from xpgraph_api.app import get_registry
 from xpgraph_api.models import HealthResponse, StatsResponse
 
@@ -36,8 +37,6 @@ def effectiveness(
     min_appearances: int = Query(2, description="Minimum item appearances"),
 ) -> dict[str, Any]:
     """Analyze context pack effectiveness."""
-    from xpgraph.retrieve.effectiveness import analyze_effectiveness
-
     registry = get_registry()
     report = analyze_effectiveness(
         registry.event_log,

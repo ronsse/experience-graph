@@ -139,4 +139,5 @@ def pack_feedback(
             "rating": 1.0 if success else 0.0,
         },
     )
-    return {"status": "ok", "pack_id": pack_id, "feedback": "positive" if success else "negative"}
+    label = "positive" if success else "negative"
+    return {"status": "ok", "pack_id": pack_id, "feedback": label}

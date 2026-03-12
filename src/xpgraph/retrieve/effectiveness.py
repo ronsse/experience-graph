@@ -1,7 +1,8 @@
-"""Context effectiveness analysis -- measures which pack items correlate with success."""
+"""Context effectiveness analysis -- measures pack item success correlation."""
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import structlog
@@ -9,6 +10,10 @@ import structlog
 from xpgraph.stores.base.event_log import EventLog, EventType
 
 logger = structlog.get_logger(__name__)
+
+# Thresholds for classification
+_SUCCESS_RATING_THRESHOLD = 0.5
+_NOISE_RATE_THRESHOLD = 0.3
 
 
 class EffectivenessReport:
@@ -57,8 +62,6 @@ def analyze_effectiveness(
     Returns:
         EffectivenessReport with per-item success rates and noise candidates.
     """
-    from datetime import UTC, datetime, timedelta
-
     since = datetime.now(tz=UTC) - timedelta(days=days)
 
     # Get all pack assembly events
@@ -87,8 +90,9 @@ def analyze_effectiveness(
     for event in feedback_events:
         pack_id = event.payload.get("pack_id") or event.entity_id
         if pack_id and pack_id in pack_items:
+            rating = event.payload.get("rating", 0.0)
             pack_feedback[pack_id] = event.payload.get(
-                "success", event.payload.get("rating", 0.0) >= 0.5
+                "success", rating >= _SUCCESS_RATING_THRESHOLD
             )
 
     # Calculate per-item success rates
@@ -127,7 +131,7 @@ def analyze_effectiveness(
         })
 
         # Flag items that appear frequently but correlate with failure
-        if rate < 0.3 and count >= min_appearances:
+        if rate < _NOISE_RATE_THRESHOLD and count >= min_appearances:
             noise_candidates.append(item_id)
 
     item_scores.sort(key=lambda x: x["success_rate"], reverse=True)

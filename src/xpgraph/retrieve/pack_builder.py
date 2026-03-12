@@ -9,7 +9,7 @@ import structlog
 from xpgraph.core.base import utc_now
 from xpgraph.retrieve.strategies import SearchStrategy
 from xpgraph.schemas.pack import Pack, PackBudget, PackItem, RetrievalReport
-from xpgraph.stores.base.event_log import EventLog
+from xpgraph.stores.base.event_log import EventLog, EventType
 
 logger = structlog.get_logger()
 
@@ -116,8 +116,6 @@ class PackBuilder:
 
     def _emit_telemetry(self, pack: Pack) -> None:
         """Emit a ContextRetrievalEvent for observability."""
-        from xpgraph.stores.base.event_log import EventType
-
         self._event_log.emit(  # type: ignore[union-attr]
             EventType.PACK_ASSEMBLED,
             source="pack_builder",

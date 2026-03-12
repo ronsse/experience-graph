@@ -7,10 +7,15 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from xpgraph.retrieve.effectiveness import analyze_effectiveness
 from xpgraph_cli.stores import get_event_log
 
 analyze_app = typer.Typer(no_args_is_help=True)
 console = Console()
+
+# Display thresholds for rate coloring
+_RATE_GREEN = 0.7
+_RATE_YELLOW = 0.4
 
 
 @analyze_app.command("context-effectiveness")
@@ -20,8 +25,6 @@ def context_effectiveness(
     output_format: str = typer.Option("text", "--format", help="Output format"),
 ) -> None:
     """Analyze which context items correlate with task success."""
-    from xpgraph.retrieve.effectiveness import analyze_effectiveness
-
     event_log = get_event_log()
     try:
         report = analyze_effectiveness(
@@ -52,9 +55,9 @@ def context_effectiveness(
             for item in report.item_scores[:20]:
                 rate_style = (
                     "green"
-                    if item["success_rate"] >= 0.7
+                    if item["success_rate"] >= _RATE_GREEN
                     else "yellow"
-                    if item["success_rate"] >= 0.4
+                    if item["success_rate"] >= _RATE_YELLOW
                     else "red"
                 )
                 table.add_row(
@@ -69,7 +72,8 @@ def context_effectiveness(
         if report.noise_candidates:
             console.print()
             console.print(
-                "[yellow]Noise Candidates[/yellow] (low success rate, consider removing):"
+                "[yellow]Noise Candidates[/yellow]"
+                " (low success rate, consider removing):"
             )
             for item_id in report.noise_candidates:
                 console.print(f"  - {item_id}")
