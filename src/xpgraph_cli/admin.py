@@ -113,6 +113,28 @@ def health(
 
 
 @admin_app.command()
+def serve(
+    host: str = typer.Option("0.0.0.0", help="Host to bind"),  # noqa: S104
+    port: int = typer.Option(8420, help="Port to bind"),
+) -> None:
+    """Start the XPG REST API server."""
+    try:
+        import uvicorn  # noqa: PLC0415
+
+        from xpgraph_api.app import create_app  # noqa: PLC0415
+    except ImportError:
+        console.print(
+            "[red]FastAPI/uvicorn not installed."
+            " Install with: pip install fastapi uvicorn[/red]"
+        )
+        raise typer.Exit(code=1)  # noqa: B904
+
+    console.print(f"[green]Starting XPG API server on {host}:{port}[/green]")
+    app = create_app()
+    uvicorn.run(app, host=host, port=port)
+
+
+@admin_app.command()
 def stats(
     output_format: str = typer.Option(
         "text", "--format", help="Output format: text or json"
