@@ -3,10 +3,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from xpgraph.mutate.commands import Command, CommandStatus, Operation
 from xpgraph.mutate.executor import MutationExecutor
+from xpgraph.stores.base.event_log import EventType
 from xpgraph_api.app import get_registry
 from xpgraph_api.models import (
     CommandResponse,
@@ -107,6 +108,8 @@ def record_feedback(req: FeedbackRequest) -> CommandResponse:
     args: dict[str, object] = {"target_id": req.target_id, "rating": req.rating}
     if req.comment:
         args["comment"] = req.comment
+    if req.pack_id:
+        args["pack_id"] = req.pack_id
     cmd = Command(
         operation=Operation.FEEDBACK_RECORD,
         args=args,
@@ -114,3 +117,26 @@ def record_feedback(req: FeedbackRequest) -> CommandResponse:
         requested_by="api",
     )
     return _execute_command(cmd)
+
+
+@router.post("/packs/{pack_id}/feedback")
+def pack_feedback(
+    pack_id: str,
+    success: bool = Query(..., description="Whether the context was helpful"),
+    notes: str | None = Query(None, description="Optional notes"),
+) -> dict[str, Any]:
+    """Record feedback on a specific context pack."""
+    registry = get_registry()
+    registry.event_log.emit(
+        EventType.FEEDBACK_RECORDED,
+        source="api",
+        entity_id=pack_id,
+        entity_type="pack",
+        payload={
+            "pack_id": pack_id,
+            "success": success,
+            "notes": notes or "",
+            "rating": 1.0 if success else 0.0,
+        },
+    )
+    return {"status": "ok", "pack_id": pack_id, "feedback": "positive" if success else "negative"}

@@ -103,6 +103,7 @@ class FeedbackRequest(BaseModel):
     target_id: str
     rating: float
     comment: str | None = None
+    pack_id: str | None = None  # Link feedback to a context pack
 
 
 class CommandResponse(BaseModel):
