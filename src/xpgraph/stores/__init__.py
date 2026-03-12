@@ -1,12 +1,25 @@
 """Store backends for Experience Graph."""
 
-from xpgraph.stores.document import DocumentStore, SQLiteDocumentStore
-from xpgraph.stores.event_log import Event, EventLog, EventType, SQLiteEventLog
-from xpgraph.stores.graph import GraphStore, SQLiteGraphStore
-from xpgraph.stores.trace import SQLiteTraceStore, TraceStore
-from xpgraph.stores.vector import SQLiteVectorStore, VectorStore
+from xpgraph.stores.base import (
+    BlobStore,
+    DocumentStore,
+    Event,
+    EventLog,
+    EventType,
+    GraphStore,
+    TraceStore,
+    VectorStore,
+)
+from xpgraph.stores.sqlite import (
+    SQLiteDocumentStore,
+    SQLiteEventLog,
+    SQLiteGraphStore,
+    SQLiteTraceStore,
+    SQLiteVectorStore,
+)
 
 __all__ = [
+    "BlobStore",
     "DocumentStore",
     "Event",
     "EventLog",
