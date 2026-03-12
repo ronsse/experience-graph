@@ -118,7 +118,7 @@ def format_traces_as_markdown(
 
         lines.append(line)
         used += line_tokens
-        included += 1
+        included += 1  # noqa: SIM113
 
     return "\n".join(lines)
 
@@ -161,7 +161,7 @@ def format_entities_as_markdown(
 
         lines.append(line)
         used += line_tokens
-        included += 1
+        included += 1  # noqa: SIM113
 
     return "\n".join(lines)
 
@@ -204,7 +204,7 @@ def format_lessons_as_markdown(
 
         lines.append(block)
         used += block_tokens
-        included += 1
+        included += 1  # noqa: SIM113
 
     return "\n".join(lines)
 

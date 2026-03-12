@@ -8,11 +8,9 @@ import structlog
 from fastmcp import FastMCP
 
 from xpgraph.retrieve.formatters import (
-    format_entities_as_markdown,
     format_lessons_as_markdown,
     format_pack_as_markdown,
     format_subgraph_as_markdown,
-    format_traces_as_markdown,
 )
 from xpgraph.schemas.trace import Trace
 from xpgraph.stores.base.event_log import EventType
