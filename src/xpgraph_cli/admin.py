@@ -104,3 +104,55 @@ def health(
             status = "[green]OK[/green]" if ok else "[red]MISSING[/red]"
             table.add_row(name, status)
         console.print(table)
+
+
+@admin_app.command()
+def stats(
+    output_format: str = typer.Option(
+        "text", "--format", help="Output format: text or json"
+    ),
+) -> None:
+    """Show store statistics."""
+    from xpgraph_cli.stores import (
+        get_document_store,
+        get_event_log,
+        get_graph_store,
+        get_trace_store,
+    )
+
+    counts: dict[str, int] = {}
+
+    store = get_trace_store()
+    try:
+        counts["traces"] = store.count()
+    finally:
+        store.close()
+
+    store = get_document_store()
+    try:
+        counts["documents"] = store.count()
+    finally:
+        store.close()
+
+    gstore = get_graph_store()
+    try:
+        counts["nodes"] = gstore.count_nodes()
+        counts["edges"] = gstore.count_edges()
+    finally:
+        gstore.close()
+
+    elog = get_event_log()
+    try:
+        counts["events"] = elog.count()
+    finally:
+        elog.close()
+
+    if output_format == "json":
+        console.print(json.dumps({"status": "ok", **counts}))
+    else:
+        table = Table(title="Store Statistics")
+        table.add_column("Store", style="cyan")
+        table.add_column("Count", justify="right")
+        for name, count in counts.items():
+            table.add_row(name, str(count))
+        console.print(table)
