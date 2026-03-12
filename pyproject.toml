@@ -51,7 +51,7 @@ xpg-api = "xpgraph_api.app:main"
 source = "vcs"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/xpgraph", "src/xpgraph_cli", "src/xpgraph_workers", "src/xpgraph_api"]
+packages = ["src/xpgraph", "src/xpgraph_cli", "src/xpgraph_workers", "src/xpgraph_api", "src/xpgraph_sdk"]
 
 [tool.ruff]
 line-length = 88
