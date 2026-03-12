@@ -19,7 +19,7 @@ except ImportError:
     HAS_PSYCOPG = False
 
 try:
-    from pgvector.psycopg import register_vector  # type: ignore[import-untyped]
+    from pgvector.psycopg import register_vector
 
     HAS_PGVECTOR = True
 except ImportError:
@@ -181,7 +181,7 @@ class PgVectorStore(VectorStore):
                 "DELETE FROM vectors WHERE item_id = %s",
                 (item_id,),
             )
-            deleted = cur.rowcount > 0
+            deleted = bool(cur.rowcount > 0)
         self._conn.commit()
         return deleted
 

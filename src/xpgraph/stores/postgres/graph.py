@@ -548,7 +548,7 @@ class PostgresGraphStore(GraphStore):
             cur.execute(
                 "DELETE FROM nodes WHERE node_id = %s", (node_id,)
             )
-            deleted = cur.rowcount > 0
+            deleted = bool(cur.rowcount > 0)
         self._conn.commit()
         if deleted:
             logger.debug("node_deleted", node_id=node_id)
@@ -559,7 +559,7 @@ class PostgresGraphStore(GraphStore):
             cur.execute(
                 "DELETE FROM edges WHERE edge_id = %s", (edge_id,)
             )
-            deleted = cur.rowcount > 0
+            deleted = bool(cur.rowcount > 0)
         self._conn.commit()
         if deleted:
             logger.debug("edge_deleted", edge_id=edge_id)
@@ -601,8 +601,8 @@ class PostgresGraphStore(GraphStore):
         if val is None:
             return None
         if hasattr(val, "isoformat"):
-            return val.isoformat()  # type: ignore[no-any-return]
-        return val  # type: ignore[return-value]
+            return str(val.isoformat())
+        return str(val)
 
     @classmethod
     def _node_row_to_dict(

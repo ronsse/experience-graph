@@ -217,27 +217,27 @@ class StoreRegistry:
 
     @property
     def trace_store(self) -> TraceStore:
-        return self._get("trace")
+        return self._get("trace")  # type: ignore[no-any-return]
 
     @property
     def document_store(self) -> DocumentStore:
-        return self._get("document")
+        return self._get("document")  # type: ignore[no-any-return]
 
     @property
     def graph_store(self) -> GraphStore:
-        return self._get("graph")
+        return self._get("graph")  # type: ignore[no-any-return]
 
     @property
     def vector_store(self) -> VectorStore:
-        return self._get("vector")
+        return self._get("vector")  # type: ignore[no-any-return]
 
     @property
     def event_log(self) -> EventLog:
-        return self._get("event_log")
+        return self._get("event_log")  # type: ignore[no-any-return]
 
     @property
     def blob_store(self) -> BlobStore:
-        return self._get("blob")
+        return self._get("blob")  # type: ignore[no-any-return]
 
     def close(self) -> None:
         """Close all cached stores."""

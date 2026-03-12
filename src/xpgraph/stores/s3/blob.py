@@ -93,7 +93,7 @@ class S3BlobStore(BlobStore):
                 Bucket=self._bucket,
                 Key=self._full_key(key),
             )
-            return response["Body"].read()
+            return bytes(response["Body"].read())
         except ClientError as exc:
             code = exc.response.get("Error", {}).get("Code", "")
             if code in ("NoSuchKey", "404"):

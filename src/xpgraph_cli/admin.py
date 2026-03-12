@@ -143,17 +143,17 @@ def stats(
     """Show store statistics."""
     counts: dict[str, int] = {}
 
-    store = get_trace_store()
+    trace_store = get_trace_store()
     try:
-        counts["traces"] = store.count()
+        counts["traces"] = trace_store.count()
     finally:
-        store.close()
+        trace_store.close()
 
-    store = get_document_store()
+    doc_store = get_document_store()
     try:
-        counts["documents"] = store.count()
+        counts["documents"] = doc_store.count()
     finally:
-        store.close()
+        doc_store.close()
 
     gstore = get_graph_store()
     try:

@@ -9,8 +9,8 @@ import pytest
 lancedb = pytest.importorskip("lancedb")
 pytest.importorskip("pyarrow")
 
-from xpgraph.stores.base.vector import VectorStore
-from xpgraph.stores.lancedb.store import LanceVectorStore
+from xpgraph.stores.base.vector import VectorStore  # noqa: E402
+from xpgraph.stores.lancedb.store import LanceVectorStore  # noqa: E402
 
 
 @pytest.fixture

@@ -211,12 +211,12 @@ class LanceVectorStore(VectorStore):
         safe_id = item_id.replace("'", "''")
         self._table.delete(f"item_id = '{safe_id}'")
         count_after = self._table.count_rows()
-        return count_after < count_before
+        return bool(count_after < count_before)
 
     def count(self) -> int:
         if self._table is None:
             return 0
-        return self._table.count_rows()
+        return int(self._table.count_rows())
 
     def close(self) -> None:
         self._table = None

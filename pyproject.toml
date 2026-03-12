@@ -97,7 +97,18 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["xpgraph._version", "numpy", "numpy.*", "lancedb", "lancedb.*", "pyarrow", "pyarrow.*"]
+module = [
+    "xpgraph._version",
+    "numpy", "numpy.*",
+    "lancedb", "lancedb.*",
+    "pyarrow", "pyarrow.*",
+    "psycopg", "psycopg.*",
+    "pgvector", "pgvector.*",
+    "boto3", "boto3.*",
+    "botocore", "botocore.*",
+    "fastmcp", "fastmcp.*",
+    "fastapi", "fastapi.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

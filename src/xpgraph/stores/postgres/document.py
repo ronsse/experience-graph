@@ -113,7 +113,7 @@ class PostgresDocumentStore(DocumentStore):
     def delete(self, doc_id: str) -> bool:
         with self._conn.cursor() as cur:
             cur.execute("DELETE FROM documents WHERE doc_id = %s", (doc_id,))
-            deleted = cur.rowcount > 0
+            deleted = bool(cur.rowcount > 0)
         self._conn.commit()
         if deleted:
             logger.debug("document_deleted", doc_id=doc_id)

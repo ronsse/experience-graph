@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -29,7 +29,7 @@ class XPGClient:
         if self._http is None:
             import httpx  # noqa: PLC0415
 
-            self._http = httpx.Client(base_url=self._base_url, timeout=30.0)
+            self._http = httpx.Client(base_url=self._base_url, timeout=30.0)  # type: ignore[arg-type]
         return self._http
 
     def _get_registry(self) -> Any:
@@ -52,20 +52,20 @@ class XPGClient:
         if self.is_remote:
             resp = self._get_http().post("/api/v1/traces", json=trace)
             resp.raise_for_status()
-            return resp.json()["trace_id"]
+            return cast("str", resp.json()["trace_id"])
 
         from xpgraph.schemas.trace import Trace  # noqa: PLC0415
 
         t = Trace.model_validate(trace)
         registry = self._get_registry()
-        return registry.trace_store.append(t)
+        return cast("str", registry.trace_store.append(t))
 
     def ingest_evidence(self, evidence: dict[str, Any]) -> str:
         """Ingest evidence. Returns the evidence_id."""
         if self.is_remote:
             resp = self._get_http().post("/api/v1/evidence", json=evidence)
             resp.raise_for_status()
-            return resp.json()["evidence_id"]
+            return cast("str", resp.json()["evidence_id"])
 
         from xpgraph.schemas.evidence import Evidence  # noqa: PLC0415
 
@@ -97,13 +97,17 @@ class XPGClient:
                 params["domain"] = domain
             resp = self._get_http().get("/api/v1/search", params=params)
             resp.raise_for_status()
-            return resp.json().get("results", [])
+            data: dict[str, Any] = resp.json()
+            return cast("list[dict[str, Any]]", data.get("results", []))
 
         registry = self._get_registry()
         filters: dict[str, Any] = {}
         if domain:
             filters["domain"] = domain
-        return registry.document_store.search(query, limit=limit, filters=filters)
+        results = registry.document_store.search(
+            query, limit=limit, filters=filters
+        )
+        return cast("list[dict[str, Any]]", results)
 
     def get_trace(self, trace_id: str) -> dict[str, Any] | None:
         """Get a trace by ID."""
@@ -112,11 +116,12 @@ class XPGClient:
             if resp.status_code == _HTTP_NOT_FOUND:
                 return None
             resp.raise_for_status()
-            return resp.json().get("trace")
+            return cast("dict[str, Any] | None", resp.json().get("trace"))
 
         registry = self._get_registry()
         trace = registry.trace_store.get(trace_id)
-        return trace.model_dump(mode="json") if trace else None
+        dumped = trace.model_dump(mode="json") if trace else None
+        return cast("dict[str, Any] | None", dumped)
 
     def list_traces(
         self,
@@ -131,7 +136,8 @@ class XPGClient:
                 params["domain"] = domain
             resp = self._get_http().get("/api/v1/traces", params=params)
             resp.raise_for_status()
-            return resp.json().get("traces", [])
+            data: dict[str, Any] = resp.json()
+            return cast("list[dict[str, Any]]", data.get("traces", []))
 
         registry = self._get_registry()
         traces = registry.trace_store.query(domain=domain, limit=limit)
@@ -170,7 +176,7 @@ class XPGClient:
                 },
             )
             resp.raise_for_status()
-            return resp.json()
+            return cast("dict[str, Any]", resp.json())
 
         from xpgraph.retrieve.pack_builder import PackBuilder  # noqa: PLC0415
         from xpgraph.retrieve.strategies import (  # noqa: PLC0415
@@ -206,10 +212,10 @@ class XPGClient:
             if resp.status_code == _HTTP_NOT_FOUND:
                 return None
             resp.raise_for_status()
-            return resp.json().get("entity")
+            return cast("dict[str, Any] | None", resp.json().get("entity"))
 
         registry = self._get_registry()
-        return registry.graph_store.get_node(entity_id)
+        return cast("dict[str, Any] | None", registry.graph_store.get_node(entity_id))
 
     # -- Curate --
 
@@ -230,14 +236,14 @@ class XPGClient:
                 },
             )
             resp.raise_for_status()
-            return resp.json()["node_id"]
+            return cast("str", resp.json()["node_id"])
 
         registry = self._get_registry()
         props = dict(properties or {})
         props["name"] = name
-        return registry.graph_store.upsert_node(
+        return cast("str", registry.graph_store.upsert_node(
             node_id=None, node_type=entity_type, properties=props
-        )
+        ))
 
     def create_link(
         self,
@@ -256,14 +262,14 @@ class XPGClient:
                 },
             )
             resp.raise_for_status()
-            return resp.json()["edge_id"]
+            return cast("str", resp.json()["edge_id"])
 
         registry = self._get_registry()
-        return registry.graph_store.upsert_edge(
+        return cast("str", registry.graph_store.upsert_edge(
             source_id=source_id,
             target_id=target_id,
             edge_type=edge_kind,
-        )
+        ))
 
     # -- Lifecycle --
 
