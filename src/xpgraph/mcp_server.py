@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import os
-from collections.abc import Generator
-from contextlib import contextmanager
-from pathlib import Path
 from typing import Any
 
 import structlog
@@ -13,10 +9,8 @@ from fastmcp import FastMCP
 
 from xpgraph.core.ids import generate_ulid
 from xpgraph.schemas.trace import Trace
-from xpgraph.stores.document import DocumentStore, SQLiteDocumentStore
-from xpgraph.stores.event_log import EventLog, EventType, SQLiteEventLog
-from xpgraph.stores.graph import GraphStore, SQLiteGraphStore
-from xpgraph.stores.trace import SQLiteTraceStore, TraceStore
+from xpgraph.stores.base.event_log import EventType
+from xpgraph.stores.registry import StoreRegistry
 
 logger = structlog.get_logger(__name__)
 
@@ -34,79 +28,9 @@ mcp = FastMCP(
 # ---------------------------------------------------------------------------
 
 
-def _get_stores_dir() -> Path:
-    """Resolve the stores directory from environment or defaults."""
-    config_dir = Path(
-        os.environ.get("XPG_CONFIG_DIR", str(Path.home() / ".xpg"))
-    )
-    data_dir = Path(
-        os.environ.get("XPG_DATA_DIR", str(config_dir / "data"))
-    )
-
-    config_path = config_dir / "config.yaml"
-    if config_path.exists():
-        try:
-            import yaml  # noqa: PLC0415
-
-            data = yaml.safe_load(config_path.read_text()) or {}
-            if data.get("data_dir"):
-                data_dir = Path(data["data_dir"])
-        except Exception:
-            logger.warning(
-                "mcp_config_load_failed",
-                config_path=str(config_path),
-            )
-
-    return data_dir / "stores"
-
-
-def _ensure_stores_dir() -> Path:
-    """Return the stores directory, creating it if needed."""
-    sd = _get_stores_dir()
-    if not sd.exists():
-        sd.mkdir(parents=True, exist_ok=True)
-        logger.info("mcp_stores_dir_created", path=str(sd))
-    return sd
-
-
-@contextmanager
-def _open_trace_store() -> Generator[TraceStore, None, None]:
-    sd = _ensure_stores_dir()
-    store = SQLiteTraceStore(sd / "traces.db")
-    try:
-        yield store
-    finally:
-        store.close()
-
-
-@contextmanager
-def _open_document_store() -> Generator[DocumentStore, None, None]:
-    sd = _ensure_stores_dir()
-    store = SQLiteDocumentStore(sd / "documents.db")
-    try:
-        yield store
-    finally:
-        store.close()
-
-
-@contextmanager
-def _open_graph_store() -> Generator[GraphStore, None, None]:
-    sd = _ensure_stores_dir()
-    store = SQLiteGraphStore(sd / "graph.db")
-    try:
-        yield store
-    finally:
-        store.close()
-
-
-@contextmanager
-def _open_event_log() -> Generator[EventLog, None, None]:
-    sd = _ensure_stores_dir()
-    log = SQLiteEventLog(sd / "events.db")
-    try:
-        yield log
-    finally:
-        log.close()
+def _get_registry() -> StoreRegistry:
+    """Get or create a StoreRegistry for the MCP server."""
+    return StoreRegistry.from_config_dir()
 
 
 def _error_response(message: str) -> dict[str, Any]:
@@ -140,8 +64,9 @@ def memory_search(
     if not query or not query.strip():
         return _error_response("Query must not be empty")
 
-    with _open_document_store() as store:
-        results = store.search(query, limit=limit)
+    registry = _get_registry()
+    store = registry.document_store
+    results = store.search(query, limit=limit)
 
     items = [
         {
@@ -177,8 +102,9 @@ def memory_store(
     if not content or not content.strip():
         return _error_response("Content must not be empty")
 
-    with _open_document_store() as store:
-        stored_id = store.put(doc_id, content, metadata=metadata or {})
+    registry = _get_registry()
+    store = registry.document_store
+    stored_id = store.put(doc_id, content, metadata=metadata or {})
 
     return _ok_response(doc_id=stored_id)
 
@@ -193,8 +119,9 @@ def memory_delete(doc_id: str) -> dict[str, Any]:
     if not doc_id or not doc_id.strip():
         return _error_response("doc_id must not be empty")
 
-    with _open_document_store() as store:
-        deleted = store.delete(doc_id)
+    registry = _get_registry()
+    store = registry.document_store
+    deleted = store.delete(doc_id)
 
     if not deleted:
         return _error_response(f"Document not found: {doc_id}")
@@ -225,32 +152,34 @@ def knowledge_query(
 
     results: list[dict[str, Any]] = []
 
-    with _open_graph_store() as store:
-        if node_types:
-            for nt in node_types:
-                nodes = store.query(
-                    node_type=nt,
-                    properties={"name": query},
-                    limit=limit,
-                )
-                results.extend(nodes)
-        else:
+    registry = _get_registry()
+    store = registry.graph_store
+
+    if node_types:
+        for nt in node_types:
             nodes = store.query(
-                properties={"name": query}, limit=limit
+                node_type=nt,
+                properties={"name": query},
+                limit=limit,
             )
             results.extend(nodes)
+    else:
+        nodes = store.query(
+            properties={"name": query}, limit=limit
+        )
+        results.extend(nodes)
 
-            if not results:
-                all_nodes = store.query(limit=limit * 2)
-                q_lower = query.lower()
-                for node in all_nodes:
-                    props = node.get("properties", {})
-                    name = str(props.get("name", "")).lower()
-                    desc = str(
-                        props.get("description", "")
-                    ).lower()
-                    if q_lower in name or q_lower in desc:
-                        results.append(node)
+        if not results:
+            all_nodes = store.query(limit=limit * 2)
+            q_lower = query.lower()
+            for node in all_nodes:
+                props = node.get("properties", {})
+                name = str(props.get("name", "")).lower()
+                desc = str(
+                    props.get("description", "")
+                ).lower()
+                if q_lower in name or q_lower in desc:
+                    results.append(node)
 
     seen: set[str] = set()
     unique: list[dict[str, Any]] = []
@@ -286,12 +215,13 @@ def knowledge_add(
     props = dict(properties or {})
     props["name"] = name
 
-    with _open_graph_store() as store:
-        node_id = store.upsert_node(
-            node_id=None,
-            node_type=entity_type,
-            properties=props,
-        )
+    registry = _get_registry()
+    store = registry.graph_store
+    node_id = store.upsert_node(
+        node_id=None,
+        node_type=entity_type,
+        properties=props,
+    )
 
     return _ok_response(
         node_id=node_id, entity_type=entity_type, name=name
@@ -318,22 +248,24 @@ def knowledge_relate(
             "Both source_id and target_id are required"
         )
 
-    with _open_graph_store() as store:
-        if store.get_node(source_id) is None:
-            return _error_response(
-                f"Source node not found: {source_id}"
-            )
-        if store.get_node(target_id) is None:
-            return _error_response(
-                f"Target node not found: {target_id}"
-            )
+    registry = _get_registry()
+    store = registry.graph_store
 
-        edge_id = store.upsert_edge(
-            source_id=source_id,
-            target_id=target_id,
-            edge_type=edge_kind,
-            properties=properties,
+    if store.get_node(source_id) is None:
+        return _error_response(
+            f"Source node not found: {source_id}"
         )
+    if store.get_node(target_id) is None:
+        return _error_response(
+            f"Target node not found: {target_id}"
+        )
+
+    edge_id = store.upsert_edge(
+        source_id=source_id,
+        target_id=target_id,
+        edge_type=edge_kind,
+        properties=properties,
+    )
 
     return _ok_response(
         edge_id=edge_id,
@@ -359,8 +291,9 @@ def experience_cases(
         limit: Maximum traces to return (default 10).
         domain: Optional domain filter.
     """
-    with _open_trace_store() as store:
-        traces = store.query(domain=domain, limit=limit)
+    registry = _get_registry()
+    store = registry.trace_store
+    traces = store.query(domain=domain, limit=limit)
 
     cases = [
         {
@@ -394,11 +327,12 @@ def experience_lessons(
         limit: Maximum results (default 20).
         domain: Optional domain filter.
     """
-    with _open_event_log() as log:
-        events = log.get_events(
-            event_type=EventType.PRECEDENT_PROMOTED,
-            limit=limit,
-        )
+    registry = _get_registry()
+    log = registry.event_log
+    events = log.get_events(
+        event_type=EventType.PRECEDENT_PROMOTED,
+        limit=limit,
+    )
 
     if domain:
         events = [
@@ -430,11 +364,12 @@ def experience_playbooks(limit: int = 10) -> dict[str, Any]:
 
     Note: Playbooks are not yet fully implemented.
     """
-    with _open_event_log() as log:
-        events = log.get_events(
-            event_type=EventType.PACK_ASSEMBLED,
-            limit=limit,
-        )
+    registry = _get_registry()
+    log = registry.event_log
+    events = log.get_events(
+        event_type=EventType.PACK_ASSEMBLED,
+        limit=limit,
+    )
 
     playbooks = [
         {
@@ -479,8 +414,9 @@ def trace_ingest(trace_json: str) -> dict[str, Any]:
         return _error_response(f"Invalid trace JSON: {exc}")
 
     try:
-        with _open_trace_store() as store:
-            trace_id = store.append(trace)
+        registry = _get_registry()
+        store = registry.trace_store
+        trace_id = store.append(trace)
     except Exception as exc:
         return _error_response(f"Failed to store trace: {exc}")
 
@@ -494,9 +430,10 @@ def trace_status(limit: int = 10) -> dict[str, Any]:
     Args:
         limit: Maximum traces to return (default 10).
     """
-    with _open_trace_store() as store:
-        traces = store.query(limit=limit)
-        total = store.count()
+    registry = _get_registry()
+    store = registry.trace_store
+    traces = store.query(limit=limit)
+    total = store.count()
 
     items = [
         {
@@ -528,24 +465,25 @@ def _assemble_doc_items(
 ) -> list[dict[str, Any]]:
     """Search documents and return pack items."""
     items: list[dict[str, Any]] = []
-    with _open_document_store() as store:
-        filters: dict[str, Any] = {}
-        if domain:
-            filters["domain"] = domain
-        doc_results = store.search(
-            intent, limit=max_items // 2, filters=filters
-        )
-        items.extend(
-            {
-                "item_id": doc["doc_id"],
-                "item_type": "document",
-                "excerpt": doc.get("content", "")[:500],
-                "relevance_score": abs(doc.get("rank", 0.0)),
-                "metadata": doc.get("metadata", {}),
-                "source_strategy": "keyword",
-            }
-            for doc in doc_results
-        )
+    registry = _get_registry()
+    store = registry.document_store
+    filters: dict[str, Any] = {}
+    if domain:
+        filters["domain"] = domain
+    doc_results = store.search(
+        intent, limit=max_items // 2, filters=filters
+    )
+    items.extend(
+        {
+            "item_id": doc["doc_id"],
+            "item_type": "document",
+            "excerpt": doc.get("content", "")[:500],
+            "relevance_score": abs(doc.get("rank", 0.0)),
+            "metadata": doc.get("metadata", {}),
+            "source_strategy": "keyword",
+        }
+        for doc in doc_results
+    )
     return items
 
 
@@ -555,30 +493,31 @@ def _assemble_graph_items(
 ) -> list[dict[str, Any]]:
     """Search graph nodes and return pack items."""
     items: list[dict[str, Any]] = []
-    with _open_graph_store() as store:
-        graph_limit = max(5, max_items // 4)
-        nodes = store.query(limit=graph_limit)
-        q_lower = intent.lower()
-        for node in nodes:
-            props = node.get("properties", {})
-            name = str(props.get("name", "")).lower()
-            desc = str(props.get("description", "")).lower()
-            if q_lower in name or q_lower in desc:
-                excerpt = (
-                    props.get("name", "")
-                    or props.get("description", "")
-                )
-                items.append({
-                    "item_id": node["node_id"],
-                    "item_type": "entity",
-                    "excerpt": excerpt,
-                    "relevance_score": 0.5,
-                    "metadata": {
-                        "node_type": node.get("node_type", ""),
-                        **props,
-                    },
-                    "source_strategy": "graph",
-                })
+    registry = _get_registry()
+    store = registry.graph_store
+    graph_limit = max(5, max_items // 4)
+    nodes = store.query(limit=graph_limit)
+    q_lower = intent.lower()
+    for node in nodes:
+        props = node.get("properties", {})
+        name = str(props.get("name", "")).lower()
+        desc = str(props.get("description", "")).lower()
+        if q_lower in name or q_lower in desc:
+            excerpt = (
+                props.get("name", "")
+                or props.get("description", "")
+            )
+            items.append({
+                "item_id": node["node_id"],
+                "item_type": "entity",
+                "excerpt": excerpt,
+                "relevance_score": 0.5,
+                "metadata": {
+                    "node_type": node.get("node_type", ""),
+                    **props,
+                },
+                "source_strategy": "graph",
+            })
     return items
 
 
@@ -588,27 +527,28 @@ def _assemble_trace_items(
 ) -> list[dict[str, Any]]:
     """Fetch recent traces and return pack items."""
     items: list[dict[str, Any]] = []
-    with _open_trace_store() as store:
-        trace_limit = max(3, max_items // 4)
-        traces = store.query(domain=domain, limit=trace_limit)
-        items.extend(
-            {
-                "item_id": t.trace_id,
-                "item_type": "trace",
-                "excerpt": t.intent[:300],
-                "relevance_score": 0.3,
-                "metadata": {
-                    "source": t.source.value,
-                    "outcome": (
-                        t.outcome.status.value
-                        if t.outcome
-                        else None
-                    ),
-                },
-                "source_strategy": "trace_recency",
-            }
-            for t in traces
-        )
+    registry = _get_registry()
+    store = registry.trace_store
+    trace_limit = max(3, max_items // 4)
+    traces = store.query(domain=domain, limit=trace_limit)
+    items.extend(
+        {
+            "item_id": t.trace_id,
+            "item_type": "trace",
+            "excerpt": t.intent[:300],
+            "relevance_score": 0.3,
+            "metadata": {
+                "source": t.source.value,
+                "outcome": (
+                    t.outcome.status.value
+                    if t.outcome
+                    else None
+                ),
+            },
+            "source_strategy": "trace_recency",
+        }
+        for t in traces
+    )
     return items
 
 
@@ -695,16 +635,18 @@ def context_graph(
     if not entity_id or not entity_id.strip():
         return _error_response("entity_id must not be empty")
 
-    with _open_graph_store() as store:
-        node = store.get_node(entity_id)
-        if node is None:
-            return _error_response(
-                f"Entity not found: {entity_id}"
-            )
+    registry = _get_registry()
+    store = registry.graph_store
 
-        subgraph = store.get_subgraph(
-            seed_ids=[entity_id], depth=depth
+    node = store.get_node(entity_id)
+    if node is None:
+        return _error_response(
+            f"Entity not found: {entity_id}"
         )
+
+    subgraph = store.get_subgraph(
+        seed_ids=[entity_id], depth=depth
+    )
 
     return _ok_response(
         entity=node,
