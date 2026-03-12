@@ -125,7 +125,10 @@ class StoreRegistry:
         # For sqlite backends, default to stores_dir/<type>.db
         if backend == "sqlite" and "db_path" not in params:
             if self._stores_dir is None:
-                msg = "stores_dir must be set for sqlite backends without explicit db_path"
+                msg = (
+                    "stores_dir must be set for sqlite backends"
+                    " without explicit db_path"
+                )
                 raise ValueError(msg)
             self._stores_dir.mkdir(parents=True, exist_ok=True)
             db_names = {
@@ -140,7 +143,10 @@ class StoreRegistry:
         # For local blob backend, default to stores_dir/blobs/
         if backend == "local" and "root_dir" not in params:
             if self._stores_dir is None:
-                msg = "stores_dir must be set for local blob backend without explicit root_dir"
+                msg = (
+                    "stores_dir must be set for local blob backend"
+                    " without explicit root_dir"
+                )
                 raise ValueError(msg)
             params["root_dir"] = self._stores_dir / "blobs"
 

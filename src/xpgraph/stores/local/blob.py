@@ -57,10 +57,11 @@ class LocalBlobStore(BlobStore):
         base = self._root / prefix if prefix else self._root
         if not base.exists():
             return []
-        keys = []
-        for p in base.rglob("*"):
-            if p.is_file() and ".meta" not in p.parts:
-                keys.append(str(p.relative_to(self._root)))
+        keys = [
+            str(p.relative_to(self._root))
+            for p in base.rglob("*")
+            if p.is_file() and ".meta" not in p.parts
+        ]
         return sorted(keys)
 
     def get_uri(self, key: str) -> str:
