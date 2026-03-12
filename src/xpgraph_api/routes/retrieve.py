@@ -35,10 +35,13 @@ def assemble_pack(req: PackRequest) -> PackResponse:
     """Assemble a context pack."""
     registry = get_registry()
 
-    builder = PackBuilder(strategies=[
-        KeywordSearch(registry.document_store),
-        GraphSearch(registry.graph_store),
-    ])
+    builder = PackBuilder(
+        strategies=[
+            KeywordSearch(registry.document_store),
+            GraphSearch(registry.graph_store),
+        ],
+        event_log=registry.event_log,
+    )
 
     budget = PackBudget(max_items=req.max_items, max_tokens=req.max_tokens)
     pack = builder.build(
