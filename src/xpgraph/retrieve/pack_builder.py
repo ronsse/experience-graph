@@ -9,6 +9,7 @@ import structlog
 from xpgraph.core.base import utc_now
 from xpgraph.retrieve.strategies import SearchStrategy
 from xpgraph.schemas.pack import Pack, PackBudget, PackItem, RetrievalReport
+from xpgraph.stores.base.event_log import EventLog
 
 logger = structlog.get_logger()
 
@@ -22,8 +23,13 @@ class PackBuilder:
         pack = builder.build(intent="deploy checklist", domain="platform")
     """
 
-    def __init__(self, strategies: list[SearchStrategy] | None = None) -> None:
+    def __init__(
+        self,
+        strategies: list[SearchStrategy] | None = None,
+        event_log: EventLog | None = None,
+    ) -> None:
         self._strategies = strategies or []
+        self._event_log = event_log
 
     def add_strategy(self, strategy: SearchStrategy) -> None:
         """Add a search strategy."""
@@ -92,7 +98,7 @@ class PackBuilder:
             strategies_used=strategies_used,
         )
 
-        return Pack(
+        pack = Pack(
             intent=intent,
             items=selected,
             retrieval_report=report,
@@ -100,6 +106,34 @@ class PackBuilder:
             domain=domain,
             agent_id=agent_id,
             assembled_at=utc_now(),
+        )
+
+        # Emit telemetry event
+        if self._event_log is not None:
+            self._emit_telemetry(pack)
+
+        return pack
+
+    def _emit_telemetry(self, pack: Pack) -> None:
+        """Emit a ContextRetrievalEvent for observability."""
+        from xpgraph.stores.base.event_log import EventType
+
+        self._event_log.emit(  # type: ignore[union-attr]
+            EventType.PACK_ASSEMBLED,
+            source="pack_builder",
+            entity_id=pack.pack_id,
+            entity_type="pack",
+            payload={
+                "intent": pack.intent,
+                "domain": pack.domain,
+                "agent_id": pack.agent_id,
+                "items_count": len(pack.items),
+                "injected_item_ids": [item.item_id for item in pack.items],
+                "strategies_used": pack.retrieval_report.strategies_used,
+                "candidates_found": pack.retrieval_report.candidates_found,
+                "budget_max_items": pack.budget.max_items,
+                "budget_max_tokens": pack.budget.max_tokens,
+            },
         )
 
     def _deduplicate(self, items: list[PackItem]) -> list[PackItem]:
