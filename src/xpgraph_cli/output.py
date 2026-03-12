@@ -82,8 +82,10 @@ def format_output(
             return ""
         headers = list(items[0].keys())
         lines = ["\t".join(headers)]
-        for item in items:
-            lines.append("\t".join(str(item.get(h, "")) for h in headers))
+        lines.extend(
+            "\t".join(str(item.get(h, "")) for h in headers)
+            for item in items
+        )
         return "\n".join(lines)
 
     # json format

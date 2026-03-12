@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import sys
 
 import typer
 from rich.console import Console
 
 from xpgraph.stores.event_log import EventType
+from xpgraph_cli.output import format_output, truncate_values
 from xpgraph_cli.stores import (
     get_document_store,
     get_event_log,
@@ -18,6 +20,11 @@ from xpgraph_cli.stores import (
 retrieve_app = typer.Typer(no_args_is_help=True)
 console = Console()
 
+_FMT_HELP = "Output format: text, json, jsonl, tsv"
+_FIELDS_HELP = "Comma-separated fields to include"
+_TRUNC_HELP = "Max characters for text fields"
+_QUIET_HELP = "Suppress Rich formatting"
+
 
 @retrieve_app.command()
 def pack(
@@ -25,18 +32,22 @@ def pack(
     domain: str = typer.Option(None, help="Domain scope"),
     agent: str = typer.Option(None, "--agent", help="Agent ID scope"),
     max_items: int = typer.Option(50, help="Maximum items in pack"),
-    output_format: str = typer.Option("text", "--format", help="Output format"),
-    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress Rich formatting"),
+    output_format: str = typer.Option(
+        "text", "--format", help="Output format"
+    ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q", help=_QUIET_HELP
+    ),
 ) -> None:
     """Assemble a retrieval pack for a given intent."""
-    import sys
-
     store = get_document_store()
     try:
         filters = {}
         if domain:
             filters["domain"] = domain
-        results = store.search(query=intent, limit=max_items, filters=filters)
+        results = store.search(
+            query=intent, limit=max_items, filters=filters
+        )
     finally:
         store.close()
 
@@ -53,19 +64,20 @@ def pack(
             sys.stdout.write(payload + "\n")
         else:
             console.print(payload)
+    elif quiet:
+        for r in results:
+            sys.stdout.write(r["doc_id"] + "\n")
     else:
-        if quiet:
-            for r in results:
-                sys.stdout.write(r["doc_id"] + "\n")
-        else:
-            console.print(f"[green]Pack assembled[/green] ({len(results)} items)")
-            console.print(f"  Intent: {intent}")
-            if domain:
-                console.print(f"  Domain: {domain}")
-            if agent:
-                console.print(f"  Agent: {agent}")
-            for r in results:
-                console.print(f"  - {r['doc_id']}")
+        console.print(
+            f"[green]Pack assembled[/green] ({len(results)} items)"
+        )
+        console.print(f"  Intent: {intent}")
+        if domain:
+            console.print(f"  Domain: {domain}")
+        if agent:
+            console.print(f"  Agent: {agent}")
+        for r in results:
+            console.print(f"  - {r['doc_id']}")
 
 
 @retrieve_app.command()
@@ -73,30 +85,34 @@ def search(
     query: str = typer.Argument(..., help="Search query"),
     limit: int = typer.Option(20, help="Maximum results"),
     domain: str = typer.Option(None, help="Domain scope"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text, json, jsonl, tsv"),
-    fields: str = typer.Option(None, "--fields", help="Comma-separated fields to include"),
-    truncate: int = typer.Option(None, "--truncate", help="Max characters for text fields"),
-    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress Rich formatting"),
+    output_format: str = typer.Option(
+        "text", "--format", help=_FMT_HELP
+    ),
+    fields: str = typer.Option(
+        None, "--fields", help=_FIELDS_HELP
+    ),
+    truncate: int = typer.Option(
+        None, "--truncate", help=_TRUNC_HELP
+    ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q", help=_QUIET_HELP
+    ),
 ) -> None:
     """Search the experience graph."""
-    import sys
-
-    from xpgraph_cli.output import format_output
-
     store = get_document_store()
     try:
         filters = {}
         if domain:
             filters["domain"] = domain
-        results = store.search(query=query, limit=limit, filters=filters)
+        results = store.search(
+            query=query, limit=limit, filters=filters
+        )
     finally:
         store.close()
 
     if output_format in ("json", "jsonl", "tsv"):
         if output_format == "json" and not fields:
             # Preserve backward-compatible JSON structure
-            from xpgraph_cli.output import truncate_values
-
             out_items = truncate_values(results, truncate)
             payload = json.dumps({
                 "status": "ok",
@@ -105,12 +121,17 @@ def search(
                 "results": out_items,
             })
         else:
+            wrapper = (
+                {"status": "ok", "query": query}
+                if output_format == "json"
+                else None
+            )
             payload = format_output(
                 results,
                 output_format,
                 fields=fields,
                 truncate=truncate,
-                wrapper={"status": "ok", "query": query} if output_format == "json" else None,
+                wrapper=wrapper,
             )
         if quiet:
             sys.stdout.write(payload + "\n")
@@ -119,7 +140,10 @@ def search(
     else:
         trunc = truncate or 80
         if not quiet:
-            console.print(f"[green]Search results[/green] ({len(results)} found)")
+            console.print(
+                f"[green]Search results[/green]"
+                f" ({len(results)} found)"
+            )
         for r in results:
             snippet = r.get("snippet", "")[:trunc]
             if quiet:
@@ -131,7 +155,9 @@ def search(
 @retrieve_app.command()
 def trace(
     trace_id: str = typer.Argument(..., help="Trace ID to retrieve"),
-    output_format: str = typer.Option("text", "--format", help="Output format"),
+    output_format: str = typer.Option(
+        "text", "--format", help="Output format"
+    ),
 ) -> None:
     """Retrieve a specific trace by ID."""
     store = get_trace_store()
@@ -143,10 +169,14 @@ def trace(
     if result is None:
         if output_format == "json":
             console.print(
-                json.dumps({"status": "not_found", "trace_id": trace_id})
+                json.dumps(
+                    {"status": "not_found", "trace_id": trace_id}
+                )
             )
         else:
-            console.print(f"[yellow]Trace not found[/yellow]: {trace_id}")
+            console.print(
+                f"[yellow]Trace not found[/yellow]: {trace_id}"
+            )
         raise typer.Exit(code=1)
 
     if output_format == "json":
@@ -161,8 +191,12 @@ def trace(
 
 @retrieve_app.command()
 def entity(
-    entity_id: str = typer.Argument(..., help="Entity ID to retrieve"),
-    output_format: str = typer.Option("text", "--format", help="Output format"),
+    entity_id: str = typer.Argument(
+        ..., help="Entity ID to retrieve"
+    ),
+    output_format: str = typer.Option(
+        "text", "--format", help="Output format"
+    ),
 ) -> None:
     """Retrieve a specific entity by ID."""
     store = get_graph_store()
@@ -174,17 +208,23 @@ def entity(
     if result is None:
         if output_format == "json":
             console.print(
-                json.dumps({"status": "not_found", "entity_id": entity_id})
+                json.dumps(
+                    {"status": "not_found", "entity_id": entity_id}
+                )
             )
         else:
-            console.print(f"[yellow]Entity not found[/yellow]: {entity_id}")
+            console.print(
+                f"[yellow]Entity not found[/yellow]: {entity_id}"
+            )
         raise typer.Exit(code=1)
 
     if output_format == "json":
         console.print(json.dumps(result))
     else:
         console.print(f"[green]Entity[/green]: {entity_id}")
-        console.print(f"  Type: {result.get('node_type', 'unknown')}")
+        console.print(
+            f"  Type: {result.get('node_type', 'unknown')}"
+        )
         props = result.get("properties", {})
         for k, v in props.items():
             console.print(f"  {k}: {v}")
@@ -194,20 +234,28 @@ def entity(
 def traces(
     limit: int = typer.Option(20, help="Maximum traces to return"),
     domain: str = typer.Option(None, help="Domain scope"),
-    agent: str = typer.Option(None, "--agent", help="Agent ID filter"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text, json, jsonl, tsv"),
-    fields: str = typer.Option(None, "--fields", help="Comma-separated fields to include"),
-    truncate: int = typer.Option(None, "--truncate", help="Max characters for text fields"),
-    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress Rich formatting"),
+    agent: str = typer.Option(
+        None, "--agent", help="Agent ID filter"
+    ),
+    output_format: str = typer.Option(
+        "text", "--format", help=_FMT_HELP
+    ),
+    fields: str = typer.Option(
+        None, "--fields", help=_FIELDS_HELP
+    ),
+    truncate: int = typer.Option(
+        None, "--truncate", help=_TRUNC_HELP
+    ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q", help=_QUIET_HELP
+    ),
 ) -> None:
     """List recent traces."""
-    import sys
-
-    from xpgraph_cli.output import format_output
-
     store = get_trace_store()
     try:
-        results = store.query(domain=domain, agent_id=agent, limit=limit)
+        results = store.query(
+            domain=domain, agent_id=agent, limit=limit
+        )
         total = store.count(domain=domain)
     finally:
         store.close()
@@ -234,8 +282,6 @@ def traces(
     if output_format in ("json", "jsonl", "tsv"):
         if output_format == "json" and not fields:
             # Preserve backward-compatible JSON structure
-            from xpgraph_cli.output import truncate_values
-
             out_items = truncate_values(items, truncate)
             payload = json.dumps({
                 "status": "ok",
@@ -244,12 +290,17 @@ def traces(
                 "traces": out_items,
             })
         else:
+            wrapper = (
+                {"status": "ok", "total": total}
+                if output_format == "json"
+                else None
+            )
             payload = format_output(
                 items,
                 output_format,
                 fields=fields,
                 truncate=truncate,
-                wrapper={"status": "ok", "total": total} if output_format == "json" else None,
+                wrapper=wrapper,
             )
         if quiet:
             sys.stdout.write(payload + "\n")
@@ -258,12 +309,18 @@ def traces(
     else:
         trunc = truncate or 60
         if not quiet:
-            console.print(f"[green]Traces[/green] ({len(results)} of {total})")
+            console.print(
+                f"[green]Traces[/green]"
+                f" ({len(results)} of {total})"
+            )
         for t in results:
-            outcome = t.outcome.status.value if t.outcome else "unknown"
+            outcome = (
+                t.outcome.status.value if t.outcome else "unknown"
+            )
             intent = t.intent[:trunc]
             line = (
-                f"  - {t.trace_id[:12]}... [{t.source.value}] {intent}"
+                f"  - {t.trace_id[:12]}..."
+                f" [{t.source.value}] {intent}"
                 f" ({outcome})"
             )
             if quiet:
@@ -276,16 +333,20 @@ def traces(
 def precedents(
     domain: str = typer.Option(None, help="Domain scope"),
     limit: int = typer.Option(20, help="Maximum results"),
-    output_format: str = typer.Option("text", "--format", help="Output format: text, json, jsonl, tsv"),
-    fields: str = typer.Option(None, "--fields", help="Comma-separated fields to include"),
-    truncate: int = typer.Option(None, "--truncate", help="Max characters for text fields"),
-    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress Rich formatting"),
+    output_format: str = typer.Option(
+        "text", "--format", help=_FMT_HELP
+    ),
+    fields: str = typer.Option(
+        None, "--fields", help=_FIELDS_HELP
+    ),
+    truncate: int = typer.Option(
+        None, "--truncate", help=_TRUNC_HELP
+    ),
+    quiet: bool = typer.Option(
+        False, "--quiet", "-q", help=_QUIET_HELP
+    ),
 ) -> None:
     """List precedents, optionally scoped by domain."""
-    import sys
-
-    from xpgraph_cli.output import format_output
-
     event_log = get_event_log()
     try:
         events = event_log.get_events(
@@ -312,12 +373,17 @@ def precedents(
     ]
 
     if output_format in ("json", "jsonl", "tsv"):
+        wrapper = (
+            {"status": "ok"}
+            if output_format == "json"
+            else None
+        )
         output = format_output(
             items,
             output_format,
             fields=fields,
             truncate=truncate,
-            wrapper={"status": "ok"} if output_format == "json" else None,
+            wrapper=wrapper,
         )
         if quiet:
             sys.stdout.write(output + "\n")
@@ -325,9 +391,14 @@ def precedents(
             console.print(output)
     else:
         if not quiet:
-            console.print(f"[green]Precedents[/green] ({len(events)} found)")
+            console.print(
+                f"[green]Precedents[/green]"
+                f" ({len(events)} found)"
+            )
         for e in events:
-            title = e.payload.get("title", e.entity_id or "unknown")
+            title = e.payload.get(
+                "title", e.entity_id or "unknown"
+            )
             line = f"  - {title} ({e.entity_id})"
             if quiet:
                 sys.stdout.write(line.strip() + "\n")

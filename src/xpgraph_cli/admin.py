@@ -10,6 +10,12 @@ from rich.console import Console
 from rich.table import Table
 
 from xpgraph_cli.config import XPGConfig, get_config_dir, get_data_dir
+from xpgraph_cli.stores import (
+    get_document_store,
+    get_event_log,
+    get_graph_store,
+    get_trace_store,
+)
 
 admin_app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -113,13 +119,6 @@ def stats(
     ),
 ) -> None:
     """Show store statistics."""
-    from xpgraph_cli.stores import (
-        get_document_store,
-        get_event_log,
-        get_graph_store,
-        get_trace_store,
-    )
-
     counts: dict[str, int] = {}
 
     store = get_trace_store()
