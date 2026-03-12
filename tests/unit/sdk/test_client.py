@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -12,14 +13,14 @@ from xpgraph_sdk.client import XPGClient
 @pytest.fixture
 def local_client(tmp_path: Path):
     """Create a local-mode client with temp stores."""
-    import os
-
+    os.environ["XPG_CONFIG_DIR"] = str(tmp_path / "config")
     os.environ["XPG_DATA_DIR"] = str(tmp_path / "data")
     (tmp_path / "data" / "stores").mkdir(parents=True)
     client = XPGClient()
     yield client
     client.close()
     del os.environ["XPG_DATA_DIR"]
+    del os.environ["XPG_CONFIG_DIR"]
 
 
 def test_local_client_is_not_remote(local_client):

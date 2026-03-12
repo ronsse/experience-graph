@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -17,14 +18,14 @@ from xpgraph_sdk.skills import (
 
 @pytest.fixture
 def client(tmp_path: Path):
-    import os
-
+    os.environ["XPG_CONFIG_DIR"] = str(tmp_path / "config")
     os.environ["XPG_DATA_DIR"] = str(tmp_path / "data")
     (tmp_path / "data" / "stores").mkdir(parents=True)
     c = XPGClient()
     yield c
     c.close()
     del os.environ["XPG_DATA_DIR"]
+    del os.environ["XPG_CONFIG_DIR"]
 
 
 def test_get_context_for_task_empty(client):

@@ -8,6 +8,8 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
+_HTTP_NOT_FOUND = 404
+
 
 class XPGClient:
     """Client for interacting with the Experience Graph.
@@ -107,7 +109,7 @@ class XPGClient:
         """Get a trace by ID."""
         if self.is_remote:
             resp = self._get_http().get(f"/api/v1/traces/{trace_id}")
-            if resp.status_code == 404:
+            if resp.status_code == _HTTP_NOT_FOUND:
                 return None
             resp.raise_for_status()
             return resp.json().get("trace")
@@ -201,7 +203,7 @@ class XPGClient:
         """Get an entity by ID."""
         if self.is_remote:
             resp = self._get_http().get(f"/api/v1/entities/{entity_id}")
-            if resp.status_code == 404:
+            if resp.status_code == _HTTP_NOT_FOUND:
                 return None
             resp.raise_for_status()
             return resp.json().get("entity")

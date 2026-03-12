@@ -14,6 +14,8 @@ from xpgraph.retrieve.formatters import (
 )
 from xpgraph_sdk.client import XPGClient
 
+_MAX_PREVIEW_STEPS = 5
+
 
 def get_context_for_task(
     client: XPGClient,
@@ -89,11 +91,13 @@ def get_latest_successful_trace(
         lines.append(f"**Summary:** {summary[:300]}")
     if steps:
         lines.append(f"**Steps:** {len(steps)}")
-        for step in steps[:5]:
+        for step in steps[:_MAX_PREVIEW_STEPS]:
             name = step.get("name", "unnamed")
             lines.append(f"  - {name}")
-        if len(steps) > 5:
-            lines.append(f"  - ... and {len(steps) - 5} more")
+        if len(steps) > _MAX_PREVIEW_STEPS:
+            lines.append(
+                f"  - ... and {len(steps) - _MAX_PREVIEW_STEPS} more"
+            )
 
     return "\n".join(lines)
 
