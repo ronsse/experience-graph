@@ -35,6 +35,7 @@ _BUILTIN_BACKENDS: dict[str, dict[str, tuple[str, str]]] = {
     "vector": {
         "sqlite": ("xpgraph.stores.sqlite.vector", "SQLiteVectorStore"),
         "pgvector": ("xpgraph.stores.pgvector.store", "PgVectorStore"),
+        "lancedb": ("xpgraph.stores.lancedb.store", "LanceVectorStore"),
     },
     "event_log": {
         "sqlite": ("xpgraph.stores.sqlite.event_log", "SQLiteEventLog"),
@@ -145,6 +146,17 @@ class StoreRegistry:
                 "event_log": "events.db",
             }
             params["db_path"] = self._stores_dir / db_names[store_type]
+
+        # For lancedb backend, default to stores_dir/lancedb/
+        if backend == "lancedb" and "uri" not in params:
+            if self._stores_dir is None:
+                msg = (
+                    "stores_dir must be set for lancedb backend"
+                    " without explicit uri"
+                )
+                raise ValueError(msg)
+            self._stores_dir.mkdir(parents=True, exist_ok=True)
+            params["uri"] = str(self._stores_dir / "lancedb")
 
         # For local blob backend, default to stores_dir/blobs/
         if backend == "local" and "root_dir" not in params:

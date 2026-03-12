@@ -103,7 +103,7 @@ pip install -e ".[dev]"
 # With cloud backends (Postgres, pgvector, S3)
 pip install -e ".[dev,cloud]"
 
-# With vector support (numpy, lancedb)
+# With vector support (LanceDB, numpy, pyarrow)
 pip install -e ".[dev,vectors]"
 ```
 
@@ -231,8 +231,8 @@ stores:
     backend: postgres
     dsn: postgresql://user:pass@host/db
   vector:
-    backend: pgvector
-    dsn: postgresql://user:pass@host/db
+    backend: lancedb          # serverless, no external DB needed
+    # uri: /custom/path       # optional, defaults to data/stores/lancedb/
   blob:
     backend: s3
     bucket: xpg-artifacts
@@ -242,14 +242,16 @@ stores:
 
 Available backends:
 
-| Store | SQLite (default) | Postgres | Other |
-|-------|:-:|:-:|:-:|
-| Trace | `sqlite` | `postgres` | |
-| Document | `sqlite` | `postgres` | |
-| Graph | `sqlite` | `postgres` | |
-| Vector | `sqlite` | `pgvector` | |
-| Event Log | `sqlite` | `postgres` | |
-| Blob | `local` | | `s3` |
+| Store | SQLite (default) | LanceDB | Postgres | Other |
+|-------|:-:|:-:|:-:|:-:|
+| Trace | `sqlite` | | `postgres` | |
+| Document | `sqlite` | | `postgres` | |
+| Graph | `sqlite` | | `postgres` | |
+| Vector | `sqlite` | `lancedb` | `pgvector` | |
+| Event Log | `sqlite` | | `postgres` | |
+| Blob | `local` | | | `s3` |
+
+**LanceDB** is the recommended vector backend for local/single-machine deployments — it's serverless (like SQLite for vectors), uses native ANN indexing with cosine similarity, and stores data as efficient Lance-format files on disk. No external database needed. Use **pgvector** for distributed/multi-server deployments.
 
 Graph stores support SCD Type 2 temporal versioning — query historical state with `as_of` parameter.
 

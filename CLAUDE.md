@@ -65,6 +65,7 @@ xpg analyze token-usage
 | `src/xpgraph/stores/registry.py` | StoreRegistry — DI container with config-driven backend selection |
 | `src/xpgraph/stores/sqlite/` | SQLite store implementations (default) |
 | `src/xpgraph/stores/postgres/` | Postgres store implementations (cloud) |
+| `src/xpgraph/stores/lancedb/` | LanceDB vector store (serverless ANN) |
 | `src/xpgraph/stores/pgvector/` | pgvector store (cloud vectors) |
 | `src/xpgraph/stores/s3/` | S3 blob store (cloud files) |
 | `src/xpgraph/stores/local/` | Local filesystem blob store |
@@ -89,14 +90,14 @@ xpg analyze token-usage
 
 Backends are configured via `~/.xpg/config.yaml` or environment variables:
 
-| Store | Default | Cloud | Env Var |
-|-------|---------|-------|---------|
-| Trace | `sqlite` | `postgres` | `XPG_PG_DSN` |
-| Document | `sqlite` | `postgres` | `XPG_PG_DSN` |
-| Graph | `sqlite` | `postgres` | `XPG_PG_DSN` |
-| Vector | `sqlite` | `pgvector` | `XPG_PG_DSN` |
-| Event Log | `sqlite` | `postgres` | `XPG_PG_DSN` |
-| Blob | `local` | `s3` | `XPG_S3_BUCKET` |
+| Store | Default | Local ANN | Cloud | Env Var |
+|-------|---------|-----------|-------|---------|
+| Trace | `sqlite` | | `postgres` | `XPG_PG_DSN` |
+| Document | `sqlite` | | `postgres` | `XPG_PG_DSN` |
+| Graph | `sqlite` | | `postgres` | `XPG_PG_DSN` |
+| Vector | `sqlite` | `lancedb` | `pgvector` | `XPG_PG_DSN` |
+| Event Log | `sqlite` | | `postgres` | `XPG_PG_DSN` |
+| Blob | `local` | | `s3` | `XPG_S3_BUCKET` |
 
 Graph stores support temporal versioning (SCD Type 2) with `as_of` parameter for time-travel queries.
 

@@ -35,7 +35,7 @@ dev = [
     "pre-commit>=4.0",
 ]
 vectors = [
-    "lancedb",
+    "lancedb>=0.6",
     "pyarrow",
     "pandas",
     "numpy",
@@ -83,6 +83,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S101", "ANN", "PLR2004", "ARG001", "ARG002", "ARG005", "PT011", "PLC0415"]
 "src/xpgraph/stores/**/*.py" = ["S608", "S105"]  # parameterized SQL is safe; TOKEN_TRACKED is not a password
+"src/xpgraph/stores/registry.py" = ["PLR0912"]  # _instantiate has many backend branches
 "src/xpgraph/mutate/executor.py" = ["PLR0911"]  # pipeline method has many return points
 "src/xpgraph/mcp_server.py" = ["PLR0911"]  # many return paths in tool handlers
 "src/xpgraph/mcp/**/*.py" = ["PLR0911"]  # many return paths in tool handlers
@@ -96,7 +97,7 @@ warn_unused_configs = true
 disallow_untyped_defs = false
 
 [[tool.mypy.overrides]]
-module = ["xpgraph._version", "numpy", "numpy.*"]
+module = ["xpgraph._version", "numpy", "numpy.*", "lancedb", "lancedb.*", "pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
