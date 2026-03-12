@@ -20,6 +20,8 @@ dependencies = [
     "rich>=13.0",
     "httpx>=0.27",
     "fastmcp>=2.0",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
 ]
 
 [project.optional-dependencies]
@@ -41,13 +43,15 @@ vectors = [
 
 [project.scripts]
 xpg = "xpgraph_cli.main:app"
-xpg-mcp = "xpgraph.mcp_server:main"
+xpg-mcp = "xpgraph.mcp.server:main"
+xpg-mcp-legacy = "xpgraph.mcp_server:main"
+xpg-api = "xpgraph_api.app:main"
 
 [tool.hatch.version]
 source = "vcs"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/xpgraph", "src/xpgraph_cli", "src/xpgraph_workers"]
+packages = ["src/xpgraph", "src/xpgraph_cli", "src/xpgraph_workers", "src/xpgraph_api"]
 
 [tool.ruff]
 line-length = 88
@@ -75,6 +79,8 @@ ignore = [
 "src/xpgraph/stores/**/*.py" = ["S608"]  # parameterized SQL is safe
 "src/xpgraph/mutate/executor.py" = ["PLR0911"]  # pipeline method has many return points
 "src/xpgraph/mcp_server.py" = ["PLR0911"]  # many return paths in tool handlers
+"src/xpgraph/mcp/**/*.py" = ["PLR0911"]  # many return paths in tool handlers
+"src/xpgraph_api/**/*.py" = ["PLR0911"]  # routes may have many return paths
 
 [tool.mypy]
 python_version = "3.11"
