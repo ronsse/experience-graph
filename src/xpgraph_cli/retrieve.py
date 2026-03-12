@@ -151,6 +151,56 @@ def entity(
 
 
 @retrieve_app.command()
+def traces(
+    limit: int = typer.Option(20, help="Maximum traces to return"),
+    domain: str = typer.Option(None, help="Domain scope"),
+    agent: str = typer.Option(None, "--agent", help="Agent ID filter"),
+    output_format: str = typer.Option("text", "--format", help="Output format"),
+) -> None:
+    """List recent traces."""
+    store = get_trace_store()
+    try:
+        results = store.query(domain=domain, agent_id=agent, limit=limit)
+        total = store.count(domain=domain)
+    finally:
+        store.close()
+
+    if output_format == "json":
+        items = [
+            {
+                "trace_id": t.trace_id,
+                "source": t.source.value,
+                "intent": t.intent,
+                "outcome": (
+                    t.outcome.status.value if t.outcome else None
+                ),
+                "domain": (
+                    t.context.domain if t.context else None
+                ),
+                "agent_id": (
+                    t.context.agent_id if t.context else None
+                ),
+                "created_at": t.created_at.isoformat(),
+            }
+            for t in results
+        ]
+        console.print(json.dumps({
+            "status": "ok",
+            "total": total,
+            "count": len(items),
+            "traces": items,
+        }))
+    else:
+        console.print(f"[green]Traces[/green] ({len(results)} of {total})")
+        for t in results:
+            outcome = t.outcome.status.value if t.outcome else "unknown"
+            console.print(
+                f"  - {t.trace_id[:12]}... [{t.source.value}] {t.intent[:60]}"
+                f" ({outcome})"
+            )
+
+
+@retrieve_app.command()
 def precedents(
     domain: str = typer.Option(None, help="Domain scope"),
     limit: int = typer.Option(20, help="Maximum results"),

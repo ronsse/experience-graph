@@ -1,4 +1,4 @@
-"""Curate commands — promote, link, label, feedback."""
+"""Curate commands — promote, link, label, feedback, entity."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from rich.console import Console
 
 from xpgraph.mutate.commands import Command, CommandStatus, Operation
 from xpgraph.mutate.executor import MutationExecutor
-from xpgraph_cli.stores import get_event_log
+from xpgraph_cli.stores import get_event_log, get_graph_store
 
 curate_app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -72,16 +72,45 @@ def link(
     output_format: str = typer.Option("text", "--format", help="Output format"),
 ) -> None:
     """Create a link between two entities."""
-    cmd = Command(
-        operation=Operation.LINK_CREATE,
-        args={
+    store = get_graph_store()
+    try:
+        # Verify both nodes exist
+        source = store.get_node(source_id)
+        target = store.get_node(target_id)
+        if source is None:
+            msg = f"Source node not found: {source_id}"
+            if output_format == "json":
+                console.print(json.dumps({"status": "error", "message": msg}))
+            else:
+                console.print(f"[red]{msg}[/red]")
+            raise typer.Exit(code=1)
+        if target is None:
+            msg = f"Target node not found: {target_id}"
+            if output_format == "json":
+                console.print(json.dumps({"status": "error", "message": msg}))
+            else:
+                console.print(f"[red]{msg}[/red]")
+            raise typer.Exit(code=1)
+
+        edge_id = store.upsert_edge(
+            source_id=source_id,
+            target_id=target_id,
+            edge_type=edge_kind,
+        )
+    finally:
+        store.close()
+
+    if output_format == "json":
+        console.print(json.dumps({
+            "status": "ok",
+            "edge_id": edge_id,
             "source_id": source_id,
             "target_id": target_id,
             "edge_kind": edge_kind,
-        },
-        requested_by="cli",
-    )
-    _execute_command(cmd, output_format)
+        }))
+    else:
+        console.print(f"[green]\u2713 Link created[/green]: {edge_id}")
+        console.print(f"  {source_id} --[{edge_kind}]--> {target_id}")
 
 
 @curate_app.command()
@@ -98,6 +127,63 @@ def label(
         requested_by="cli",
     )
     _execute_command(cmd, output_format)
+
+
+@curate_app.command()
+def entity(
+    entity_type: str = typer.Argument(
+        ..., help="Entity type (concept, person, system, etc.)"
+    ),
+    name: str = typer.Argument(..., help="Entity name"),
+    properties: str = typer.Option(
+        None,
+        "--properties",
+        "-p",
+        help='JSON properties dict, e.g. \'{"k": "v"}\'',
+    ),
+    output_format: str = typer.Option("text", "--format", help="Output format"),
+) -> None:
+    """Create an entity node in the knowledge graph."""
+    props: dict[str, object] = {}
+    if properties:
+        try:
+            props = json.loads(properties)
+        except json.JSONDecodeError as exc:
+            if output_format == "json":
+                console.print(json.dumps({
+                    "status": "error",
+                    "message": f"Invalid JSON for --properties: {exc}",
+                }))
+            else:
+                console.print(f"[red]Invalid JSON for --properties[/red]: {exc}")
+            raise typer.Exit(code=1) from exc
+
+    props["name"] = name
+
+    store = get_graph_store()
+    try:
+        node_id = store.upsert_node(
+            node_id=None,
+            node_type=entity_type,
+            properties=props,
+        )
+    finally:
+        store.close()
+
+    if output_format == "json":
+        console.print(json.dumps({
+            "status": "ok",
+            "node_id": node_id,
+            "entity_type": entity_type,
+            "name": name,
+            "properties": props,
+        }))
+    else:
+        console.print(f"[green]\u2713 Entity created[/green]: {node_id}")
+        console.print(f"  Type: {entity_type}")
+        console.print(f"  Name: {name}")
+        if properties:
+            console.print(f"  Properties: {props}")
 
 
 @curate_app.command()

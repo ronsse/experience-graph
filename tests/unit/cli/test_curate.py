@@ -45,18 +45,40 @@ class TestCuratePromote:
 
 
 class TestCurateLink:
+    def _create_nodes(self) -> tuple[str, str]:
+        """Create two entities and return their IDs."""
+        r1 = runner.invoke(app, [
+            "curate", "entity", "concept", "Source",
+            "--format", "json",
+        ])
+        r2 = runner.invoke(app, [
+            "curate", "entity", "concept", "Target",
+            "--format", "json",
+        ])
+        id1 = json.loads(r1.stdout.strip())["node_id"]
+        id2 = json.loads(r2.stdout.strip())["node_id"]
+        return id1, id2
+
     def test_link(self) -> None:
-        result = runner.invoke(app, ["curate", "link", "ent_1", "ent_2"])
+        id1, id2 = self._create_nodes()
+        result = runner.invoke(app, ["curate", "link", id1, id2])
         assert result.exit_code == 0
+        assert "Link created" in result.stdout
 
     def test_link_with_kind(self) -> None:
+        id1, id2 = self._create_nodes()
         result = runner.invoke(app, [
-            "curate", "link", "ent_1", "ent_2",
+            "curate", "link", id1, id2,
             "--kind", "entity_depends_on",
             "--format", "json",
         ])
         data = json.loads(result.stdout.strip())
-        assert data["operation"] == "link.create"
+        assert data["status"] == "ok"
+        assert data["edge_kind"] == "entity_depends_on"
+
+    def test_link_missing_source(self) -> None:
+        result = runner.invoke(app, ["curate", "link", "nonexistent", "also_nope"])
+        assert result.exit_code == 1
 
 
 class TestCurateLabel:
