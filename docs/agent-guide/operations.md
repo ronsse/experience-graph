@@ -59,6 +59,33 @@ xpg admin health [--format text|json]
 
 A value of `false` means the store file does not exist. Run `xpg admin init` to create missing stores.
 
+### `xpg admin stats`
+
+Show store counts.
+
+```bash
+xpg admin stats [--format text|json]
+```
+
+**JSON output:**
+
+```json
+{"traces": 42, "documents": 15, "nodes": 23, "edges": 31, "events": 127}
+```
+
+### `xpg admin serve`
+
+Start the REST API server.
+
+```bash
+xpg admin serve [--port PORT] [--host HOST] [--format text|json]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--port` | `8420` | Port to listen on |
+| `--host` | `0.0.0.0` | Host to bind to |
+
 ---
 
 ## Ingest Commands
@@ -151,6 +178,38 @@ xpg ingest evidence /tmp/evidence.json --format json
 
 ```json
 {"status": "ingested", "evidence_id": "01JRK6M3QF8GHTM2XVZP3CWD9E", "evidence_type": "snippet"}
+```
+
+### `xpg ingest dbt-manifest`
+
+Import a dbt manifest into the knowledge graph.
+
+```bash
+xpg ingest dbt-manifest <manifest-path> [--format text|json]
+```
+
+Creates entities for models, seeds, snapshots, sources, and tests. Creates `depends_on` edges from the manifest's dependency graph. Indexes descriptions into the document store.
+
+**JSON output:**
+
+```json
+{"status": "ok", "nodes_created": 12, "edges_created": 8}
+```
+
+### `xpg ingest openlineage`
+
+Import OpenLineage events into the knowledge graph.
+
+```bash
+xpg ingest openlineage <events-path> [--format text|json]
+```
+
+Reads a JSON array or newline-delimited JSON file of OpenLineage events. Creates dataset and job entities with `reads_from` and `writes_to` edges.
+
+**JSON output:**
+
+```json
+{"status": "ok", "nodes_created": 6, "edges_created": 4}
 ```
 
 ---
@@ -329,6 +388,23 @@ xpg retrieve trace <trace_id> [--format text|json]
 ```
 
 Exit code 1 when not found.
+
+### `xpg retrieve traces`
+
+List recent traces.
+
+```bash
+xpg retrieve traces [--domain DOMAIN] [--limit N] [--fields FIELDS] [--truncate N] [--quiet] [--format text|json|jsonl|tsv]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--domain` | `null` | Domain filter |
+| `--limit` | `20` | Maximum results |
+| `--fields` | all | Comma-separated field list |
+| `--truncate` | `null` | Max chars per text field |
+| `--quiet` | `false` | Suppress Rich formatting |
+| `--format` | `text` | Output format |
 
 ### `xpg retrieve search`
 
@@ -618,3 +694,142 @@ cmd = Command(
 ```
 
 If the same key has been seen before (in-memory or in the event log), the executor returns `CommandStatus.DUPLICATE` without re-executing.
+
+---
+
+## Analyze Commands
+
+### `xpg analyze context-effectiveness`
+
+Analyze which context items correlate with task success.
+
+```bash
+xpg analyze context-effectiveness [--days N] [--min-appearances N] [--format text|json]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--days` | `30` | Days of history to analyze |
+| `--min-appearances` | `2` | Minimum item appearances to include |
+
+Shows per-item success rates and flags noise candidates (items correlating with failure).
+
+### `xpg analyze token-usage`
+
+Analyze token usage across CLI, MCP, and SDK layers.
+
+```bash
+xpg analyze token-usage [--days N] [--format text|json]
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--days` | `7` | Days of history to analyze |
+
+Shows total tokens, average per response, breakdown by layer and operation, and over-budget alerts.
+
+---
+
+## REST API
+
+Start with `xpg admin serve` or `xpg-api`. Base path: `/api/v1/`.
+
+### Ingest
+
+| Method | Endpoint | Body | Description |
+|--------|----------|------|-------------|
+| POST | `/traces` | Trace JSON | Ingest a trace |
+| POST | `/evidence` | Evidence JSON | Ingest evidence |
+
+### Retrieve
+
+| Method | Endpoint | Params/Body | Description |
+|--------|----------|-------------|-------------|
+| GET | `/search` | `?q=...&domain=...&limit=20` | Full-text search |
+| POST | `/packs` | `{intent, domain?, max_items?, max_tokens?}` | Assemble context pack |
+| GET | `/entities/{id}` | — | Get entity with subgraph |
+| GET | `/traces` | `?domain=...&limit=20` | List traces |
+| GET | `/traces/{id}` | — | Get trace by ID |
+| GET | `/precedents` | `?domain=...&limit=20` | List precedents |
+
+### Curate
+
+| Method | Endpoint | Body | Description |
+|--------|----------|------|-------------|
+| POST | `/precedents` | `{trace_id, title, description}` | Promote trace |
+| POST | `/links` | `{source_id, target_id, edge_kind?}` | Create edge |
+| POST | `/entities` | `{entity_type, name, properties?}` | Create entity |
+| POST | `/feedback` | `{target_id, rating, comment?}` | Record feedback |
+| POST | `/packs/{pack_id}/feedback` | `{rating, success?, notes?}` | Pack-specific feedback |
+
+### Admin
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/health` | Health check |
+| GET | `/stats` | Store statistics |
+| GET | `/effectiveness` | Context effectiveness report |
+
+---
+
+## MCP Macro Tools
+
+Start with `xpg-mcp`. 8 tools returning token-budgeted markdown.
+
+| Tool | Args | Returns |
+|------|------|---------|
+| `get_context` | `intent`, `domain?`, `max_tokens?` | Markdown pack from docs + graph + traces |
+| `save_experience` | `trace_json` | Confirmation with trace_id |
+| `save_knowledge` | `name`, `entity_type?`, `properties?`, `relates_to?`, `edge_kind?` | Confirmation with entity_id |
+| `save_memory` | `content`, `metadata?`, `doc_id?` | Confirmation with doc_id |
+| `get_lessons` | `domain?`, `limit?`, `max_tokens?` | Markdown list of precedents |
+| `get_graph` | `entity_id`, `depth?`, `max_tokens?` | Markdown subgraph |
+| `record_feedback` | `trace_id`, `success`, `notes?` | Confirmation |
+| `search` | `query`, `limit?`, `max_tokens?` | Markdown search results |
+
+All read tools track token usage in the event log for observability.
+
+---
+
+## Python SDK
+
+```python
+from xpgraph_sdk import XPGClient
+
+# Local mode (no server needed)
+client = XPGClient()
+
+# Remote mode (via REST API)
+client = XPGClient(base_url="http://localhost:8420")
+```
+
+### Client Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `ingest_trace(trace: dict)` | `str` (trace_id) | Ingest a trace |
+| `search(query, domain?, limit?)` | `list[dict]` | Search documents |
+| `get_trace(trace_id)` | `dict \| None` | Get trace by ID |
+| `list_traces(domain?, limit?)` | `list[dict]` | List recent traces |
+| `assemble_pack(intent, **kwargs)` | `dict` | Assemble context pack |
+| `get_entity(entity_id)` | `dict \| None` | Get entity |
+| `create_entity(name, entity_type?, properties?)` | `str` (node_id) | Create entity |
+| `create_link(source_id, target_id, edge_kind?)` | `str` (edge_id) | Create edge |
+| `close()` | — | Release resources |
+
+### Skill Functions
+
+Pre-summarized markdown for LLM context injection:
+
+```python
+from xpgraph_sdk.skills import (
+    get_context_for_task,
+    get_latest_successful_trace,
+    save_trace_and_extract_lessons,
+    get_recent_activity,
+)
+
+context = get_context_for_task(client, "implement retry logic", domain="backend")
+```
+
+All skill functions return `str` (markdown), not data objects.

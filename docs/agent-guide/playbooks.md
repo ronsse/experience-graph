@@ -347,3 +347,177 @@ xpg retrieve pack \
 
 - **Empty results:** The graph may not have relevant data yet. Proceed with the task and ingest a trace when done (Playbook 1).
 - **Too many results:** Add `--domain` filter or more specific search terms. Reduce `--limit`.
+
+---
+
+## Playbook 7: Using MCP Macro Tools
+
+**When to use:** When an AI agent needs context from XPG through an MCP-compatible IDE (Cursor, Cline, Claude Code).
+
+### Steps
+
+1. Ensure the MCP server is running:
+
+```bash
+xpg-mcp
+```
+
+2. Use `get_context` to retrieve relevant context before starting work:
+
+```
+Tool: get_context
+Args: {"intent": "implement payment retry with backoff", "domain": "backend", "max_tokens": 1500}
+```
+
+3. After completing work, save the experience:
+
+```
+Tool: save_experience
+Args: {"trace_json": "{\"source\": \"agent\", \"intent\": \"...\", ...}"}
+```
+
+4. Record whether the task succeeded:
+
+```
+Tool: record_feedback
+Args: {"trace_id": "01JRK5N7QF", "success": true, "notes": "Clean implementation, all tests pass"}
+```
+
+### Key Points
+
+- All tools return **markdown**, not JSON — ready for LLM consumption
+- Use `max_tokens` to control response size (default: 2000)
+- `get_context` searches documents, graph, and traces simultaneously
+- `search` is for targeted queries; `get_context` is for broad task context
+
+---
+
+## Playbook 8: Using the Python SDK
+
+**When to use:** When integrating XPG into an orchestrator (LangGraph, CrewAI) or custom agent code.
+
+### Steps
+
+1. Create a client:
+
+```python
+from xpgraph_sdk import XPGClient
+
+# Local mode (no server needed)
+client = XPGClient()
+
+# Remote mode (against REST API)
+client = XPGClient(base_url="http://localhost:8420")
+```
+
+2. Get pre-summarized context for a task:
+
+```python
+from xpgraph_sdk.skills import get_context_for_task
+
+context_md = get_context_for_task(
+    client, "implement payment retry", domain="backend", max_tokens=1500
+)
+# context_md is a markdown string — inject directly into the LLM prompt
+```
+
+3. Ingest a trace after completing work:
+
+```python
+trace_id = client.ingest_trace({
+    "source": "agent",
+    "intent": "Implemented payment retry with exponential backoff",
+    "steps": [...],
+    "outcome": {"status": "success", "summary": "All tests pass"},
+    "context": {"agent_id": "orchestrator", "domain": "backend"},
+})
+```
+
+4. Always close the client when done:
+
+```python
+client.close()
+```
+
+### If It Fails
+
+- **ConnectionError (remote mode):** Ensure the API server is running (`xpg admin serve`).
+- **Store not initialized (local mode):** Run `xpg admin init`.
+
+---
+
+## Playbook 9: Importing External Data
+
+**When to use:** When you want to populate the knowledge graph from dbt lineage or OpenLineage events.
+
+### dbt Manifest
+
+1. Run dbt to generate the manifest:
+
+```bash
+cd my-dbt-project
+dbt compile  # or dbt run
+```
+
+2. Import the manifest:
+
+```bash
+xpg ingest dbt-manifest target/manifest.json --format json
+```
+
+3. Verify entities were created:
+
+```bash
+xpg retrieve search "my_model_name" --format json
+```
+
+### OpenLineage Events
+
+1. Collect OpenLineage events (JSON array or newline-delimited JSON):
+
+```bash
+xpg ingest openlineage lineage-events.json --format json
+```
+
+2. The worker creates:
+   - **Dataset entities** for each input/output dataset
+   - **Job entities** for each job
+   - **`reads_from`** edges from jobs to input datasets
+   - **`writes_to`** edges from jobs to output datasets
+
+### Key Points
+
+- Both commands are **idempotent** — re-running produces the same graph
+- dbt descriptions are indexed in the document store for full-text search
+- Use `xpg retrieve entity <id>` to explore the imported graph
+
+---
+
+## Playbook 10: Analyzing Context Quality
+
+**When to use:** Periodically (weekly or after a batch of tasks) to improve retrieval quality.
+
+### Steps
+
+1. Check context effectiveness:
+
+```bash
+xpg analyze context-effectiveness --days 30 --format json
+```
+
+2. Review the report:
+   - **Success rate** — overall ratio of positive feedback
+   - **Item scores** — which items correlate with success or failure
+   - **Noise candidates** — items that appear frequently but correlate with failure
+
+3. Check token usage:
+
+```bash
+xpg analyze token-usage --days 7 --format json
+```
+
+4. Review for over-budget responses — tools consistently exceeding their token budget may need lower limits or content trimming.
+
+### If It Fails
+
+- **No feedback recorded:** Use `xpg curate feedback` or `POST /api/v1/packs/{pack_id}/feedback` to record outcomes. The analysis requires feedback events to be meaningful.

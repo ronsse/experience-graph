@@ -56,6 +56,9 @@ class EventType(StrEnum):
     MUTATION_EXECUTED = "mutation.executed"
     MUTATION_REJECTED = "mutation.rejected"
 
+    # Token tracking
+    TOKEN_TRACKED = "token.tracked"
+
 
 class Event(VersionedModel):
     """An immutable event record."""

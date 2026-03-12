@@ -11,7 +11,7 @@ from rich.console import Console
 
 from xpgraph.schemas.evidence import Evidence
 from xpgraph.schemas.trace import Trace
-from xpgraph_cli.stores import get_document_store, get_trace_store
+from xpgraph_cli.stores import _get_registry, get_document_store, get_trace_store
 
 ingest_app = typer.Typer(no_args_is_help=True)
 console = Console()
@@ -116,3 +116,78 @@ def ingest_evidence(
     else:
         console.print(f"[green]Evidence ingested[/green]: {evidence.evidence_id}")
         console.print(f"  Type: {evidence.evidence_type}")
+
+
+@ingest_app.command("dbt-manifest")
+def ingest_dbt_manifest(
+    manifest_path: str = typer.Argument(
+        ..., help="Path to dbt manifest.json or project dir"
+    ),
+    output_format: str = typer.Option(
+        "text", "--format", help="Output format: text or json"
+    ),
+) -> None:
+    """Ingest a dbt manifest into the knowledge graph."""
+    path = Path(manifest_path)
+    if not path.exists():
+        console.print(f"[red]Path not found: {manifest_path}[/red]")
+        raise typer.Exit(code=1)
+
+    from xpgraph_workers.ingestion.dbt import DbtManifestWorker  # noqa: PLC0415
+
+    registry = _get_registry()
+    try:
+        worker = DbtManifestWorker(registry)
+        counts = worker.run(path)
+    except Exception as exc:
+        if output_format == "json":
+            console.print(json.dumps({"status": "error", "message": str(exc)}))
+        else:
+            console.print(f"[red]dbt ingest failed: {exc}[/red]")
+        raise typer.Exit(code=1) from None
+    finally:
+        registry.close()
+
+    if output_format == "json":
+        console.print(json.dumps({"status": "ingested", **counts}))
+    else:
+        console.print("[green]dbt manifest ingested[/green]")
+        console.print(f"  Nodes: {counts['nodes']}")
+        console.print(f"  Edges: {counts['edges']}")
+        console.print(f"  Documents: {counts.get('documents', 0)}")
+
+
+@ingest_app.command("openlineage")
+def ingest_openlineage(
+    events_path: str = typer.Argument(..., help="Path to OpenLineage events JSON file"),
+    output_format: str = typer.Option(
+        "text", "--format", help="Output format: text or json"
+    ),
+) -> None:
+    """Ingest OpenLineage events into the knowledge graph."""
+    path = Path(events_path)
+    if not path.exists():
+        console.print(f"[red]File not found: {events_path}[/red]")
+        raise typer.Exit(code=1)
+
+    from xpgraph_workers.ingestion.openlineage import OpenLineageWorker  # noqa: PLC0415
+
+    registry = _get_registry()
+    try:
+        worker = OpenLineageWorker(registry)
+        counts = worker.run(path)
+    except Exception as exc:
+        if output_format == "json":
+            console.print(json.dumps({"status": "error", "message": str(exc)}))
+        else:
+            console.print(f"[red]OpenLineage ingest failed: {exc}[/red]")
+        raise typer.Exit(code=1) from None
+    finally:
+        registry.close()
+
+    if output_format == "json":
+        console.print(json.dumps({"status": "ingested", **counts}))
+    else:
+        console.print("[green]OpenLineage events ingested[/green]")
+        console.print(f"  Nodes: {counts['nodes']}")
+        console.print(f"  Edges: {counts['edges']}")

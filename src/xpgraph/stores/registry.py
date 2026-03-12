@@ -22,21 +22,27 @@ logger = structlog.get_logger(__name__)
 _BUILTIN_BACKENDS: dict[str, dict[str, tuple[str, str]]] = {
     "trace": {
         "sqlite": ("xpgraph.stores.sqlite.trace", "SQLiteTraceStore"),
+        "postgres": ("xpgraph.stores.postgres.trace", "PostgresTraceStore"),
     },
     "document": {
         "sqlite": ("xpgraph.stores.sqlite.document", "SQLiteDocumentStore"),
+        "postgres": ("xpgraph.stores.postgres.document", "PostgresDocumentStore"),
     },
     "graph": {
         "sqlite": ("xpgraph.stores.sqlite.graph", "SQLiteGraphStore"),
+        "postgres": ("xpgraph.stores.postgres.graph", "PostgresGraphStore"),
     },
     "vector": {
         "sqlite": ("xpgraph.stores.sqlite.vector", "SQLiteVectorStore"),
+        "pgvector": ("xpgraph.stores.pgvector.store", "PgVectorStore"),
     },
     "event_log": {
         "sqlite": ("xpgraph.stores.sqlite.event_log", "SQLiteEventLog"),
+        "postgres": ("xpgraph.stores.postgres.event_log", "PostgresEventLog"),
     },
     "blob": {
         "local": ("xpgraph.stores.local.blob", "LocalBlobStore"),
+        "s3": ("xpgraph.stores.s3.blob", "S3BlobStore"),
     },
 }
 
@@ -149,6 +155,45 @@ class StoreRegistry:
                 )
                 raise ValueError(msg)
             params["root_dir"] = self._stores_dir / "blobs"
+
+        # For postgres backends, default DSN from env
+        if backend == "postgres" and "dsn" not in params:
+            import os  # noqa: PLC0415
+
+            dsn = os.environ.get("XPG_PG_DSN")
+            if not dsn:
+                msg = (
+                    "dsn must be set for postgres backends"
+                    " (config or XPG_PG_DSN env var)"
+                )
+                raise ValueError(msg)
+            params["dsn"] = dsn
+
+        # For pgvector backend, default DSN from env
+        if backend == "pgvector" and "dsn" not in params:
+            import os  # noqa: PLC0415
+
+            dsn = os.environ.get("XPG_PG_DSN")
+            if not dsn:
+                msg = (
+                    "dsn must be set for pgvector backend"
+                    " (config or XPG_PG_DSN env var)"
+                )
+                raise ValueError(msg)
+            params["dsn"] = dsn
+
+        # For s3 backend, default bucket from env
+        if backend == "s3" and "bucket" not in params:
+            import os  # noqa: PLC0415
+
+            bucket = os.environ.get("XPG_S3_BUCKET")
+            if not bucket:
+                msg = (
+                    "bucket must be set for s3 backend"
+                    " (config or XPG_S3_BUCKET env var)"
+                )
+                raise ValueError(msg)
+            params["bucket"] = bucket
 
         logger.info("store_instantiated", store_type=store_type, backend=backend)
         return cls(**params)

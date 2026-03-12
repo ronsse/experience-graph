@@ -12,6 +12,7 @@ from xpgraph.retrieve.formatters import (
     format_pack_as_markdown,
     format_subgraph_as_markdown,
 )
+from xpgraph.retrieve.token_tracker import estimate_tokens, track_token_usage
 from xpgraph.schemas.trace import Trace
 from xpgraph.stores.base.event_log import EventType
 from xpgraph.stores.registry import StoreRegistry
@@ -127,7 +128,18 @@ def get_context(
     if not unique:
         return f"No context found for: {intent}"
 
-    return format_pack_as_markdown(unique, intent, max_tokens=max_tokens)
+    result = format_pack_as_markdown(unique, intent, max_tokens=max_tokens)
+    try:
+        track_token_usage(
+            registry.event_log,
+            layer="mcp",
+            operation="get_context",
+            response_tokens=estimate_tokens(result),
+            budget_tokens=max_tokens,
+        )
+    except Exception:
+        logger.debug("token_tracking_failed", operation="get_context")
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +292,18 @@ def get_lessons(
         for e in events
     ]
 
-    return format_lessons_as_markdown(lessons, max_tokens=max_tokens)
+    result = format_lessons_as_markdown(lessons, max_tokens=max_tokens)
+    try:
+        track_token_usage(
+            registry.event_log,
+            layer="mcp",
+            operation="get_lessons",
+            response_tokens=estimate_tokens(result),
+            budget_tokens=max_tokens,
+        )
+    except Exception:
+        logger.debug("token_tracking_failed", operation="get_lessons")
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -312,7 +335,18 @@ def get_graph(
     subgraph = registry.graph_store.get_subgraph(
         seed_ids=[entity_id], depth=depth
     )
-    return format_subgraph_as_markdown(node, subgraph, max_tokens=max_tokens)
+    result = format_subgraph_as_markdown(node, subgraph, max_tokens=max_tokens)
+    try:
+        track_token_usage(
+            registry.event_log,
+            layer="mcp",
+            operation="get_graph",
+            response_tokens=estimate_tokens(result),
+            budget_tokens=max_tokens,
+        )
+    except Exception:
+        logger.debug("token_tracking_failed", operation="get_graph")
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -410,9 +444,20 @@ def search(
         return f"No results found for: {query}"
 
     items.sort(key=lambda x: x.get("relevance_score", 0.0), reverse=True)
-    return format_pack_as_markdown(
+    result = format_pack_as_markdown(
         items[:limit], f"Search: {query}", max_tokens=max_tokens
     )
+    try:
+        track_token_usage(
+            registry.event_log,
+            layer="mcp",
+            operation="search",
+            response_tokens=estimate_tokens(result),
+            budget_tokens=max_tokens,
+        )
+    except Exception:
+        logger.debug("token_tracking_failed", operation="search")
+    return result
 
 
 # ---------------------------------------------------------------------------

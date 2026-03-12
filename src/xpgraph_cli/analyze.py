@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from xpgraph.retrieve.effectiveness import analyze_effectiveness
+from xpgraph.retrieve.token_usage import analyze_token_usage
 from xpgraph_cli.stores import get_event_log
 
 analyze_app = typer.Typer(no_args_is_help=True)
@@ -84,3 +85,90 @@ def context_effectiveness(
                 "[dim]No feedback recorded yet. Use 'xpg curate feedback' or"
                 " POST /api/v1/packs/{pack_id}/feedback to record outcomes.[/dim]"
             )
+
+
+@analyze_app.command("token-usage")
+def token_usage(
+    days: int = typer.Option(7, help="Days of history to analyze"),
+    output_format: str = typer.Option("text", "--format", help="Output format"),
+) -> None:
+    """Analyze token usage across CLI, MCP, and SDK layers."""
+    event_log = get_event_log()
+    try:
+        report = analyze_token_usage(event_log, days=days)
+    finally:
+        event_log.close()
+
+    if output_format == "json":
+        console.print(json.dumps(report.to_dict()))
+        return
+
+    console.print(f"[bold]Token Usage Report[/bold] (last {days} days)")
+    console.print(f"  Total responses: {report.total_responses}")
+    console.print(f"  Total tokens: {report.total_tokens:,}")
+    console.print(f"  Avg tokens/response: {report.avg_tokens_per_response:.1f}")
+
+    if report.by_layer:
+        console.print()
+        layer_table = Table(title="By Layer")
+        layer_table.add_column("Layer", style="cyan")
+        layer_table.add_column("Responses", justify="right")
+        layer_table.add_column("Total Tokens", justify="right")
+        layer_table.add_column("Avg Tokens", justify="right")
+
+        for layer, stats in sorted(report.by_layer.items()):
+            layer_table.add_row(
+                layer.upper(),
+                str(stats["count"]),
+                f"{stats['total_tokens']:,}",
+                f"{stats['avg_tokens']:.1f}",
+            )
+        console.print(layer_table)
+
+    if report.by_operation:
+        console.print()
+        op_table = Table(title="Top Operations by Token Usage")
+        op_table.add_column("Operation", style="cyan")
+        op_table.add_column("Layer", style="dim")
+        op_table.add_column("Calls", justify="right")
+        op_table.add_column("Total Tokens", justify="right")
+        op_table.add_column("Avg Tokens", justify="right")
+
+        for op in report.by_operation:
+            op_table.add_row(
+                op["operation"],
+                op["layer"],
+                str(op["count"]),
+                f"{op['total_tokens']:,}",
+                f"{op['avg_tokens']:.1f}",
+            )
+        console.print(op_table)
+
+    if report.over_budget:
+        console.print()
+        console.print(
+            f"[yellow]Over-Budget Responses ({len(report.over_budget)})[/yellow]"
+        )
+        budget_table = Table()
+        budget_table.add_column("Operation", style="cyan")
+        budget_table.add_column("Layer")
+        budget_table.add_column("Response Tokens", justify="right")
+        budget_table.add_column("Budget", justify="right")
+        budget_table.add_column("When")
+
+        for item in report.over_budget[:20]:
+            budget_table.add_row(
+                item["operation"],
+                item["layer"],
+                str(item["response_tokens"]),
+                str(item["budget_tokens"]),
+                item["occurred_at"][:16],
+            )
+        console.print(budget_table)
+
+    if report.total_responses == 0:
+        console.print()
+        console.print(
+            "[dim]No token usage recorded yet. Token tracking is enabled"
+            " on MCP macro tools automatically.[/dim]"
+        )

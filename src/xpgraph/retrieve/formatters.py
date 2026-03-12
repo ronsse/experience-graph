@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+import structlog
+
+logger = structlog.get_logger(__name__)
+
 
 def _estimate_tokens(text: str) -> int:
     """Estimate token count (~4 chars per token)."""
@@ -259,4 +263,79 @@ def format_subgraph_as_markdown(
             lines.append(f"- **{nname}** ({ntype})")
 
     result = "\n".join(lines)
+    return _truncate_to_tokens(result, max_tokens)
+
+
+def auto_trim_response(
+    text: str,
+    max_tokens: int,
+    *,
+    strategy: str = "tail",
+) -> tuple[str, bool]:
+    """Trim a response to fit within token budget.
+
+    This is a safety-net for edge cases where the primary formatters
+    (which stop adding items at the budget boundary) still produce
+    output that exceeds the budget.
+
+    Args:
+        text: The response text to potentially trim.
+        max_tokens: Maximum allowed token count.
+        strategy: Trimming strategy.
+            ``"tail"`` removes content from the end (default).
+            ``"low_relevance"`` removes the lowest-scored markdown
+            sections first (identified by ``## `` headers).
+
+    Returns:
+        Tuple of (trimmed_text, was_trimmed).
+    """
+    current_tokens = _estimate_tokens(text)
+    if current_tokens <= max_tokens:
+        return text, False
+
+    if strategy == "low_relevance":
+        trimmed = _trim_low_relevance(text, max_tokens)
+    else:
+        trimmed = _truncate_to_tokens(text, max_tokens)
+
+    logger.debug(
+        "auto_trim_applied",
+        strategy=strategy,
+        original_tokens=current_tokens,
+        max_tokens=max_tokens,
+        trimmed_tokens=_estimate_tokens(trimmed),
+    )
+    return trimmed, True
+
+
+def _trim_low_relevance(text: str, max_tokens: int) -> str:
+    """Remove lowest-relevance sections (by position) until within budget.
+
+    Sections are identified by ``## `` headers. Later sections are
+    assumed to be lower relevance and are dropped first.
+    """
+    lines = text.split("\n")
+    sections: list[list[str]] = []
+    current: list[str] = []
+
+    for line in lines:
+        if line.startswith("## ") and current:
+            sections.append(current)
+            current = [line]
+        else:
+            current.append(line)
+    if current:
+        sections.append(current)
+
+    # Remove sections from the end until we fit
+    while len(sections) > 1:
+        candidate = "\n".join(
+            line for section in sections for line in section
+        )
+        if _estimate_tokens(candidate) <= max_tokens:
+            return candidate
+        sections.pop()
+
+    # Down to one section — fall back to hard truncation
+    result = "\n".join(sections[0]) if sections else ""
     return _truncate_to_tokens(result, max_tokens)
