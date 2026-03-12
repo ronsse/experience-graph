@@ -2,57 +2,95 @@
 
 A structured context graph and experience store for AI agents. Agents read from and write to a shared knowledge layer — traces, entities, evidence, precedents, and policies — so teams build institutional memory instead of starting from scratch.
 
-## Core Concepts
-
-- **Traces** — structured records of agent/human actions with outcomes
-- **Entities** — nodes in a shared knowledge graph (with SCD Type 2 temporal versioning)
-- **Evidence** — provenance-tracked artifacts (snippets, logs, files)
-- **Precedents** — curated institutional knowledge extracted from traces
-- **Policies** — governance rules for the write pipeline
-- **Packs** — retrieval bundles assembled for specific tasks, token-budgeted for LLM context windows
-
-## Architecture
+## What's In the Graph
 
 ```
-                    ┌─────────────────────────────────────┐
-                    │          Integration Layers          │
-                    │                                      │
-                    │  MCP Macro Tools (8 tools, markdown) │
-                    │  REST API (FastAPI, /api/v1/*)       │
-                    │  Python SDK (XPGClient, skills)      │
-                    │  CLI (xpg)                           │
-                    └──────────────┬──────────────────────┘
-                                   │
-                    ┌──────────────▼──────────────────────┐
-                    │       Governed Mutation Pipeline      │
-                    │  Validate → Policy → Idempotency     │
-                    │  → Execute → Emit Event              │
-                    └──────────────┬──────────────────────┘
-                                   │
-          ┌────────────────────────▼────────────────────────┐
-          │              Pluggable Store Layer               │
-          │                                                  │
-          │  ┌──────────┐  ┌──────────┐  ┌──────────┐      │
-          │  │  SQLite   │  │ Postgres │  │ S3 Blob  │      │
-          │  │ (default) │  │ pgvector │  │ (cloud)  │      │
-          │  └──────────┘  └──────────┘  └──────────┘      │
-          │                                                  │
-          │  Stores: Trace, Document, Graph, Vector,        │
-          │          Event Log, Blob                         │
-          └─────────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────────────────────────┐
+  │                     THE EXPERIENCE GRAPH                            │
+  │                                                                     │
+  │  ┌───────────┐  depends_on   ┌───────────┐  part_of  ┌─────────┐  │
+  │  │  service:  │──────────────▶│  service:  │─────────▶│  team:  │  │
+  │  │  auth-api  │              │  user-db   │          │ platform │  │
+  │  └─────┬─────┘              └───────────┘          └─────────┘  │
+  │        │ touched_entity                                          │
+  │  ┌─────▼──────────────────────────────────────┐                  │
+  │  │  trace: "Added rate limiting to auth-api"  │                  │
+  │  │  ├─ step: researched existing patterns     │                  │
+  │  │  ├─ step: tool_call edit_file gateway.py   │                  │
+  │  │  ├─ step: tool_call run_tests (42 passed)  │                  │
+  │  │  └─ outcome: success                       │                  │
+  │  └─────┬──────────────────────┬───────────────┘                  │
+  │        │ used_evidence        │ promoted_to_precedent            │
+  │  ┌─────▼─────────┐    ┌──────▼──────────────────────────┐       │
+  │  │  evidence:    │    │  precedent: "Rate limiting      │       │
+  │  │  "RFC: API    │    │  pattern for API gateways"      │       │
+  │  │   guidelines" │    │  confidence: 0.85               │       │
+  │  │  uri: s3://…  │    │  applies_to: [auth, payments]   │       │
+  │  └───────────────┘    └─────────────────────────────────┘       │
+  │                                                                     │
+  │  Every node has temporal versions (valid_from / valid_to)          │
+  │  — query any past state with as_of                                 │
+  └─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Five packages:**
+The graph captures **what agents did** (traces with steps, tool calls, reasoning, outcomes), **what they knew** (evidence — documents, snippets, file pointers with URIs to local files or S3), **what they learned** (precedents — distilled patterns extracted from successful and failed traces), and **how things relate** (13 edge types: dependencies, provenance, applicability). All nodes carry temporal versions so you can query the state of knowledge at any point in time.
 
-| Package | Purpose |
-|---|---|
-| `xpgraph` | Core library — schemas, pluggable stores, mutation executor, retrieval, formatters |
-| `xpgraph_cli` | CLI (`xpg`) — ingest, curate, retrieve, analyze, admin |
-| `xpgraph_api` | REST API (`xpg-api`) — FastAPI server with OpenAPI spec |
-| `xpgraph_sdk` | Python SDK — `XPGClient` with local/remote modes, skill functions |
-| `xpgraph_workers` | Workers — enrichment, learning, ingestion (dbt, OpenLineage), maintenance |
+## How It Works
 
-**Integration:** `integrations/obsidian/` — index Obsidian vault notes into the graph.
+```
+  AGENTS & HUMANS                     BACKGROUND WORKERS
+  read & write                        analyze & curate
+       │                                     │
+       │  ┌───────────────────────┐          │
+       ├──│ CLI  (xpg)            │          │
+       ├──│ MCP  (8 macro tools)  │  Tools   │  ┌─────────────────────┐
+       ├──│ API  (REST/FastAPI)   │──Layer──┐ ├──│ Enrichment: auto-   │
+       ├──│ SDK  (XPGClient)      │        │ │  │   tag, classify,    │
+       │  └───────────────────────┘        │ │  │   score importance  │
+       │                                   │ │  ├─────────────────────┤
+       │  ┌───────────────────────┐        │ ├──│ Learning: mine      │
+       │  │ Context Pack Builder  │◀───────┘ │  │   failure patterns  │
+       │  │ ┌─────┐ ┌─────┐      │          │  │   into precedents   │
+       │  │ │docs │ │graph│      │          │  ├─────────────────────┤
+       │  │ │     │ │     │      │  Retrieval├──│ Ingestion: import   │
+       │  │ │FTS  │ │ BFS │      │          │  │   dbt, OpenLineage  │
+       │  │ └─────┘ └─────┘      │          │  ├─────────────────────┤
+       │  │ ┌─────┐ ┌─────┐      │          ├──│ Maintenance: prune  │
+       │  │ │trace│ │vector│     │          │  │   stale data, audit │
+       │  │ │     │ │      │     │          │  ├─────────────────────┤
+       │  │ │hist.│ │sim.  │     │          └──│ Thinking Engine:    │
+       │  │ └─────┘ └─────┘      │             │   cognition tiering │
+       │  │                      │             │   (fast→deep)       │
+       │  │ → deduplicate        │             └─────────────────────┘
+       │  │ → rank by relevance  │
+       │  │ → enforce token      │
+       │  │   budget             │
+       │  │ → emit telemetry     │
+       │  └──────────┬───────────┘
+       │             │ assembled pack
+       │             ▼
+       │  ┌──────────────────────────┐
+       │  │  Markdown context for    │
+       │  │  agent's next task       │
+       │  │  (token-budgeted,        │
+       │  │   relevance-ranked)      │
+       │  └──────────────────────────┘
+       │
+       │  ┌──────────────────────────────────────┐
+       └─▶│      Governed Write Pipeline          │
+          │  validate → policy check              │
+          │  → idempotency → execute              │
+          │  → emit event (immutable audit log)   │
+          └──────────────────────┬────────────────┘
+                                 │
+          ┌──────────────────────▼────────────────┐
+          │         Pluggable Storage              │
+          │  SQLite (local) │ Postgres (cloud)     │
+          │  pgvector       │ S3 (blobs/files)     │
+          └────────────────────────────────────────┘
+```
+
+**The feedback loop:** agents retrieve context packs before tasks, execute work, ingest traces of what happened, and record whether the task succeeded. Background workers analyze these outcomes to promote successful patterns into precedents and flag noisy context items — so the graph gets smarter over time.
 
 ## Install
 
