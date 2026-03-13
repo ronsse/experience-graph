@@ -46,13 +46,13 @@ The graph captures **what agents did** (traces with steps, tool calls, reasoning
        ├──│ MCP  (8 macro tools)  │  Tools   │  ┌─────────────────────┐
        ├──│ API  (REST/FastAPI)   │──Layer──┐ ├──│ Enrichment: auto-   │
        ├──│ SDK  (XPGClient)      │        │ │  │   tag, classify,    │
-       │  └───────────────────────┘        │ │  │   score importance  │
-       │                                   │ │  ├─────────────────────┤
-       │  ┌───────────────────────┐        │ ├──│ Learning: mine      │
-       │  │ Context Pack Builder  │◀───────┘ │  │   failure patterns  │
-       │  │ ┌─────┐ ┌─────┐      │          │  │   into precedents   │
-       │  │ │docs │ │graph│      │          │  ├─────────────────────┤
-       │  │ │     │ │     │      │  Retrieval├──│ Ingestion: import   │
+       ├──│ OpenClaw (MCP skill)  │        │ │  │   score importance  │
+       │  └───────────────────────┘        │ │  ├─────────────────────┤
+       │                                   │ ├──│ Learning: mine      │
+       │  ┌───────────────────────┐        │ │  │   failure patterns  │
+       │  │ Context Pack Builder  │◀───────┘ │  │   into precedents   │
+       │  │ ┌─────┐ ┌─────┐      │          │  ├─────────────────────┤
+       │  │ │docs │ │graph│      │  Retrieval├──│ Ingestion: import   │
        │  │ │FTS  │ │ BFS │      │          │  │   dbt, OpenLineage  │
        │  │ └─────┘ └─────┘      │          │  ├─────────────────────┤
        │  │ ┌─────┐ ┌─────┐      │          ├──│ Maintenance: prune  │
@@ -172,6 +172,29 @@ Key endpoints:
 | GET | `/api/v1/effectiveness` | Context effectiveness report |
 
 Full OpenAPI spec available at `/docs` when the server is running.
+
+## OpenClaw Integration
+
+Add structured institutional memory to OpenClaw agents in 3 steps:
+
+```bash
+pip install experience-graph && xpg admin init
+```
+
+Add to `openclaw.json`:
+
+```json
+{
+  "mcpServers": {
+    "experience-graph": {
+      "command": "xpg-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+Your agent gets 8 macro tools for traces, precedents, knowledge graph, and search. See [`integrations/openclaw/`](integrations/openclaw/) for full setup guide.
 
 ## MCP Server
 

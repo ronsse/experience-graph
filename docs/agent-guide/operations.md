@@ -789,6 +789,29 @@ Start with `xpg-mcp`. 8 tools returning token-budgeted markdown.
 
 All read tools track token usage in the event log for observability.
 
+### OpenClaw Setup
+
+OpenClaw has native MCP client support. Add XPG to your `openclaw.json`:
+
+```json
+{
+  "mcpServers": {
+    "experience-graph": {
+      "command": "xpg-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+Or install via ClawHub:
+
+```bash
+clawhub install experience-graph
+```
+
+After restarting OpenClaw, the agent has access to all 8 macro tools above. See [`integrations/openclaw/`](../../integrations/openclaw/) for the full setup guide and skill definition.
+
 ---
 
 ## Python SDK

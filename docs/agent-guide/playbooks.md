@@ -521,3 +521,66 @@ xpg analyze token-usage --days 7 --format json
 ### If It Fails
 
 - **No feedback recorded:** Use `xpg curate feedback` or `POST /api/v1/packs/{pack_id}/feedback` to record outcomes. The analysis requires feedback events to be meaningful.
+
+---
+
+## Playbook 11: OpenClaw Integration
+
+**When to use:** When setting up Experience Graph as a structured memory backend for OpenClaw agents.
+
+### Steps
+
+1. Install Experience Graph and initialize stores.
+
+```bash
+pip install experience-graph
+xpg admin init
+```
+
+2. Verify the MCP server starts.
+
+```bash
+xpg-mcp
+```
+
+Press Ctrl+C after confirming it starts without errors.
+
+3. Add XPG to your `openclaw.json`:
+
+```json
+{
+  "mcpServers": {
+    "experience-graph": {
+      "command": "xpg-mcp",
+      "args": []
+    }
+  }
+}
+```
+
+4. Restart OpenClaw. The agent now has access to 8 macro tools.
+
+5. Verify the agent can use XPG tools by asking it to run:
+
+```
+get_context(intent="test connection", max_tokens=500)
+```
+
+### Usage Patterns
+
+**Retrieve before acting:** Before starting non-trivial work, have the agent call `get_context` with the task intent. This returns relevant traces, precedents, and evidence.
+
+**Record after success:** After completing meaningful work, have the agent call `save_experience` with a trace of what it did, then `record_feedback` with the outcome.
+
+**Build the knowledge graph:** When the agent discovers or creates important entities (services, concepts, patterns), use `save_knowledge` to add them to the graph with typed relationships.
+
+### When to Use XPG vs Built-in Memory
+
+- **Built-in memory:** Daily notes, session context, quick personal reminders.
+- **XPG:** Structured traces of work, reusable precedents, knowledge graph entities with typed relationships, temporal versioning, cross-agent institutional knowledge.
+
+### If It Fails
+
+- **MCP server won't start:** Run `xpg admin health` to check store status. Run `xpg admin init` if stores are missing.
+- **Agent doesn't see tools:** Ensure `openclaw.json` has the correct `mcpServers` entry and OpenClaw has been restarted.
+- **Tools return empty results:** The graph is likely empty. Ingest some traces first (see Playbook 1) or use `save_memory` to seed documents.

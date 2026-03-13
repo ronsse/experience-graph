@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "experience-graph": {
+      "command": "xpg-mcp",
+      "args": []
+    }
+  }
+}
